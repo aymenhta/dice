@@ -90,6 +90,8 @@ func serializeBulkStrings(x *BulkStrings) ([]byte, error) {
 
 // Current implementation convert its values into an array of byte strings
 // this doesn't support nested arrays, arrays of integers, ...etc
+//
+// POSSIBLE FIX: use the option API
 func serializeArrays(x *Arrays) ([]byte, error) {
 	var buff bytes.Buffer
 	buff.WriteString("*")

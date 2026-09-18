@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
+
+	"aymenhta.com/dice/command"
+	"aymenhta.com/dice/payload"
 )
 
 var oKResponse []byte = []byte("+OK\r\n")
@@ -41,6 +45,7 @@ func (srv *DiceServer) Start() error {
 	}
 }
 
+// TODO: Handle Graceful Exit by client
 func (srv *DiceServer) handleClient(conn net.Conn) error {
 	defer conn.Close()
 
@@ -57,10 +62,44 @@ func (srv *DiceServer) handleClient(conn net.Conn) error {
 			break
 		}
 
-		payload := buff[0:bytesRead]
-		fmt.Println("received: ", string(payload))
+		input, _, err := payload.Parse(buff[0:bytesRead])
+		if err != nil {
+			msg := "-ERR " + err.Error() + "\r\n" // TODO: only if the error is a client error
+			conn.Write([]byte(msg))
+			continue
+		}
+		// input must be and array of bulk strings
+		inputx, ok := input.(*payload.Arrays)
+		if !ok {
+			conn.Write([]byte("-ERR invalid paylod\r\n"))
+			continue
+		}
 
-		conn.Write(oKResponse)
+		if len(inputx.Value) < 1 {
+			conn.Write(oKResponse)
+			continue
+		}
+
+		rawCmd := string(inputx.Value[0])
+
+		if strings.EqualFold(rawCmd, "ping") {
+			message, ok := elementAt(inputx.Value, 1)
+			if !ok {
+				message = nil
+			}
+			response, err := command.Ping(message)
+			if err != nil {
+				msg := "-ERR " + err.Error() + "\r\n" // TODO: only if the error is a client error
+				conn.Write([]byte(msg))
+				continue
+			} else {
+				conn.Write(response)
+			}
+
+			continue
+		} else {
+			conn.Write([]byte("-ERR invalid command (TODO: insert command name)\r\n"))
+		}
 	}
 	return nil
 }
