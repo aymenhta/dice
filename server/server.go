@@ -2,13 +2,16 @@ package server
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
 	"time"
 
 	"aymenhta.com/dice/command"
+	"aymenhta.com/dice/diceio"
 	"aymenhta.com/dice/payload"
 )
 
@@ -49,11 +52,16 @@ func (srv *DiceServer) Start() error {
 func (srv *DiceServer) handleClient(conn net.Conn) error {
 	defer conn.Close()
 
+	db := make(map[string][]byte)
 	buff := make([]byte, 4096)
 	reader := bufio.NewReader(conn)
 	for {
 		bytesRead, err := reader.Read(buff)
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				logServerInfo("client disconnected gracefully.")
+				return nil
+			}
 			logServerErr(err)
 			return err
 		}
@@ -62,43 +70,52 @@ func (srv *DiceServer) handleClient(conn net.Conn) error {
 			break
 		}
 
-		input, _, err := payload.Parse(buff[0:bytesRead])
+		input, _, err := payload.Parse(buff[0:bytesRead]) // TODO: seperate client from server errors
 		if err != nil {
-			msg := "-ERR " + err.Error() + "\r\n" // TODO: only if the error is a client error
-			conn.Write([]byte(msg))
+			diceio.SendError(conn, err.Error())
 			continue
 		}
 		// input must be and array of bulk strings
 		inputx, ok := input.(*payload.Arrays)
 		if !ok {
-			conn.Write([]byte("-ERR invalid paylod\r\n"))
+			diceio.SendError(conn, payload.ErrInvalidPayload.Error())
 			continue
 		}
 
 		if len(inputx.Value) < 1 {
-			conn.Write(oKResponse)
+			diceio.RespondWithOk(conn)
 			continue
 		}
 
 		rawCmd := string(inputx.Value[0])
 
 		if strings.EqualFold(rawCmd, "ping") {
-			message, ok := elementAt(inputx.Value, 1)
-			if !ok {
-				message = nil
+			message := elementAt(inputx.Value, 1)
+			if _, err := command.Ping(conn, message); err != nil {
+				logServerErr(err)
 			}
-			response, err := command.Ping(message)
-			if err != nil {
-				msg := "-ERR " + err.Error() + "\r\n" // TODO: only if the error is a client error
-				conn.Write([]byte(msg))
-				continue
-			} else {
-				conn.Write(response)
+		} else if strings.EqualFold(rawCmd, "echo") {
+			message := elementAt(inputx.Value, 1)
+			if _, err := command.Echo(conn, message); err != nil {
+				logServerErr(err)
 			}
-
-			continue
+		} else if strings.EqualFold(rawCmd, "set") {
+			key := elementAt(inputx.Value, 1)
+			value := elementAt(inputx.Value, 2)
+			if _, err := command.Set(conn, db, key, value); err != nil {
+				logServerErr(err)
+			}
+		} else if strings.EqualFold(rawCmd, "get") {
+			key := elementAt(inputx.Value, 1)
+			if _, err := command.Get(conn, db, key); err != nil {
+				logServerErr(err)
+			}
+		} else if strings.EqualFold(rawCmd, "command") {
+			if _, err := command.Command(conn); err != nil {
+				logServerErr(err)
+			}
 		} else {
-			conn.Write([]byte("-ERR invalid command (TODO: insert command name)\r\n"))
+			diceio.SendError(conn, "unknown command '%s'", rawCmd)
 		}
 	}
 	return nil

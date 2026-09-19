@@ -2,8 +2,23 @@ package payload
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"strconv"
+
+	"aymenhta.com/dice/diceio"
 )
+
+func SerializeTo(w io.Writer, payload IPayload) (int, error) {
+	b, err := Serialize(payload)
+	if err != nil {
+		if errors.Is(err, ErrInvalidPayload) {
+			return diceio.SendError(w, err.Error())
+		}
+		return 0, nil
+	}
+	return w.Write(b)
+}
 
 func Serialize(payload IPayload) ([]byte, error) {
 	switch payload.Kind() {

@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	ErrInvalidPayload = errors.New("invalid payload.")
+	ErrInvalidPayload = errors.New("ERR invalid payload.")
 )
 
 const SEP = "\r\n"
