@@ -1,30 +1,24 @@
-package payload
+package resp
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"strconv"
-
-	"aymenhta.com/dice/diceio"
 )
 
-func SerializeTo(w io.Writer, payload IPayload) (int, error) {
+func SerializeTo(w io.Writer, payload Frame) (int, error) {
 	b, err := Serialize(payload)
 	if err != nil {
-		if errors.Is(err, ErrInvalidPayload) {
-			return diceio.SendError(w, err.Error())
-		}
-		return 0, nil
+		return 0, err
 	}
 	return w.Write(b)
 }
 
-func Serialize(payload IPayload) ([]byte, error) {
+func Serialize(payload Frame) ([]byte, error) {
 	switch payload.Kind() {
 
 	case PAYLOAD_SIMPLE_STRINGS:
-		item, ok := payload.(*SimpleStrings)
+		item, ok := payload.(*SimpleString)
 		if !ok {
 			return nil, ErrInvalidPayload
 		}
@@ -32,7 +26,7 @@ func Serialize(payload IPayload) ([]byte, error) {
 		return serializeSimpleStrings(item)
 
 	case PAYLOAD_INTEGERS:
-		item, ok := payload.(*Integers)
+		item, ok := payload.(*Integer)
 		if !ok {
 			return nil, ErrInvalidPayload
 		}
@@ -40,7 +34,7 @@ func Serialize(payload IPayload) ([]byte, error) {
 		return serializeIntegers(item)
 
 	case PAYLOAD_ERRORS:
-		item, ok := payload.(*Errors)
+		item, ok := payload.(*Error)
 		if !ok {
 			return nil, ErrInvalidPayload
 		}
@@ -48,7 +42,7 @@ func Serialize(payload IPayload) ([]byte, error) {
 		return serializeErrors(item)
 
 	case PAYLOAD_BULK_STRINGS:
-		item, ok := payload.(*BulkStrings)
+		item, ok := payload.(*BulkString)
 		if !ok {
 			return nil, ErrInvalidPayload
 		}
@@ -56,7 +50,7 @@ func Serialize(payload IPayload) ([]byte, error) {
 		return serializeBulkStrings(item)
 
 	case PAYLOAD_ARRAYS:
-		item, ok := payload.(*Arrays)
+		item, ok := payload.(*Array)
 		if !ok {
 			return nil, ErrInvalidPayload
 		}
@@ -68,28 +62,31 @@ func Serialize(payload IPayload) ([]byte, error) {
 	}
 }
 
-func serializeSimpleStrings(x *SimpleStrings) ([]byte, error) {
+func serializeSimpleStrings(x *SimpleString) ([]byte, error) {
 	var buff bytes.Buffer
 	buff.WriteString("+")
 	buff.Write(x.Value)
 	buff.WriteString(SEP)
 	return buff.Bytes(), nil
 }
-func serializeIntegers(x *Integers) ([]byte, error) {
+
+func serializeIntegers(x *Integer) ([]byte, error) {
 	var buff bytes.Buffer
 	buff.WriteString(":")
 	buff.Write(x.Value)
 	buff.WriteString(SEP)
 	return buff.Bytes(), nil
 }
-func serializeErrors(x *Errors) ([]byte, error) {
+
+func serializeErrors(x *Error) ([]byte, error) {
 	var buff bytes.Buffer
 	buff.WriteString("-")
 	buff.Write(x.Value)
 	buff.WriteString(SEP)
 	return buff.Bytes(), nil
 }
-func serializeBulkStrings(x *BulkStrings) ([]byte, error) {
+
+func serializeBulkStrings(x *BulkString) ([]byte, error) {
 	var buff bytes.Buffer
 	buff.WriteString("$")
 	if x.IsNull {
@@ -107,7 +104,7 @@ func serializeBulkStrings(x *BulkStrings) ([]byte, error) {
 // this doesn't support nested arrays, arrays of integers, ...etc
 //
 // POSSIBLE FIX: use the option API
-func serializeArrays(x *Arrays) ([]byte, error) {
+func serializeArrays(x *Array) ([]byte, error) {
 	var buff bytes.Buffer
 	buff.WriteString("*")
 	if x.IsNull {
@@ -127,7 +124,7 @@ func serializeArrays(x *Arrays) ([]byte, error) {
 
 	for _, b := range x.Value {
 		// Serialize them as byte strings
-		bs := &BulkStrings{Value: b, IsNull: b == nil}
+		bs := &BulkString{Value: b, IsNull: b == nil}
 		bData, err := serializeBulkStrings(bs)
 		if err != nil {
 			return nil, err

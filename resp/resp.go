@@ -1,4 +1,4 @@
-package payload
+package resp
 
 import (
 	"errors"
@@ -11,15 +11,21 @@ var (
 
 const SEP = "\r\n"
 
+type FrameKind uint8
+
 const (
-	PAYLOAD_SIMPLE_STRINGS PayloadKind = 1
-	PAYLOAD_INTEGERS       PayloadKind = 2
-	PAYLOAD_ERRORS         PayloadKind = 3
-	PAYLOAD_BULK_STRINGS   PayloadKind = 4
-	PAYLOAD_ARRAYS         PayloadKind = 5
+	PAYLOAD_SIMPLE_STRINGS FrameKind = iota
+	PAYLOAD_INTEGERS
+	PAYLOAD_ERRORS
+	PAYLOAD_BULK_STRINGS
+	PAYLOAD_ARRAYS
 )
 
-func PayloadKindFromByte(x byte) (PayloadKind, error) {
+type Frame interface {
+	Kind() FrameKind
+}
+
+func frameKindFromByte(x byte) (FrameKind, error) {
 	switch x {
 	case '+':
 		return PAYLOAD_SIMPLE_STRINGS, nil

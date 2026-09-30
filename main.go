@@ -3,13 +3,18 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
+	"os"
 
-	"aymenhta.com/dice/payload"
+	"aymenhta.com/dice/resp"
 	"aymenhta.com/dice/server"
 )
 
 func main() {
-	dice := server.NewDiceServer(":8888")
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	slog.SetDefault(logger)
+
+	dice := server.NewDiceServer(":8888", logger)
 	if err := dice.Start(); err != nil {
 		log.Fatal(err)
 	}
@@ -33,12 +38,12 @@ func testPayloadParsing() {
 	}
 
 	for _, tcase := range cases {
-		item, _, err := payload.Parse([]byte(tcase))
+		item, _, err := resp.Parse([]byte(tcase))
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		serialization, err := payload.Serialize(item)
+		serialization, err := resp.Serialize(item)
 		if err != nil {
 			log.Fatal(err)
 		}

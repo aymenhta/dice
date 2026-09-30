@@ -5,64 +5,75 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
-	"os"
 	"strings"
-	"time"
 
-	"aymenhta.com/dice/command"
-	"aymenhta.com/dice/diceio"
-	"aymenhta.com/dice/payload"
+	"aymenhta.com/dice/resp"
 )
 
-var oKResponse []byte = []byte("+OK\r\n")
+const MAX_DB_NUM = 16
+
+type DB map[string][]byte
+
+type Store [MAX_DB_NUM]DB
 
 type DiceServer struct {
-	port string
+	port      string
+	logger    *slog.Logger
+	store     Store
+	currentDB int
 }
 
-func NewDiceServer(port string) *DiceServer {
-	return &DiceServer{
-		port: port,
+func NewDiceServer(port string, logger *slog.Logger) *DiceServer {
+	// initialize store
+	var store Store
+	for i := range MAX_DB_NUM {
+		store[i] = make(DB)
 	}
+
+	var srv DiceServer
+	srv.port = port
+	srv.logger = logger
+	srv.store = store
+	srv.currentDB = 0
+	return &srv
 }
 
 func (srv *DiceServer) Start() error {
 	ln, err := net.Listen("tcp", srv.port)
 	if err != nil {
-		logServerErr(err)
+		srv.logger.Error(err.Error())
 		return err
 	}
 	defer ln.Close()
-	logServerInfo("Started listening on port: %s", srv.port)
+	srv.logger.Info("Started listening...", "port", srv.port)
 
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			logServerErr(err)
+			srv.logger.Error(err.Error())
 			return err
 		}
-		logServerInfo("a new connection arrived at: %s", conn.RemoteAddr().String())
+		srv.logger.Info("a new connection arrived", "addr", conn.RemoteAddr().String())
 
 		go srv.handleClient(conn)
 	}
 }
 
-// TODO: Handle Graceful Exit by client
 func (srv *DiceServer) handleClient(conn net.Conn) error {
 	defer conn.Close()
 
-	db := make(map[string][]byte)
 	buff := make([]byte, 4096)
 	reader := bufio.NewReader(conn)
 	for {
 		bytesRead, err := reader.Read(buff)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				logServerInfo("client disconnected gracefully.")
+			if errors.Is(err, io.EOF) && bytesRead == 0 {
+				srv.logger.Info("client disconnected gracefully.")
 				return nil
 			}
-			logServerErr(err)
+			srv.logger.Error(err.Error())
 			return err
 		}
 
@@ -70,61 +81,75 @@ func (srv *DiceServer) handleClient(conn net.Conn) error {
 			break
 		}
 
-		input, _, err := payload.Parse(buff[0:bytesRead]) // TODO: seperate client from server errors
-		if err != nil {
-			diceio.SendError(conn, err.Error())
-			continue
-		}
-		// input must be and array of bulk strings
-		inputx, ok := input.(*payload.Arrays)
-		if !ok {
-			diceio.SendError(conn, payload.ErrInvalidPayload.Error())
-			continue
-		}
-
-		if len(inputx.Value) < 1 {
-			diceio.RespondWithOk(conn)
-			continue
-		}
-
-		rawCmd := string(inputx.Value[0])
-
-		if strings.EqualFold(rawCmd, "ping") {
-			message := elementAt(inputx.Value, 1)
-			if _, err := command.Ping(conn, message); err != nil {
-				logServerErr(err)
-			}
-		} else if strings.EqualFold(rawCmd, "echo") {
-			message := elementAt(inputx.Value, 1)
-			if _, err := command.Echo(conn, message); err != nil {
-				logServerErr(err)
-			}
-		} else if strings.EqualFold(rawCmd, "set") {
-			key := elementAt(inputx.Value, 1)
-			value := elementAt(inputx.Value, 2)
-			if _, err := command.Set(conn, db, key, value); err != nil {
-				logServerErr(err)
-			}
-		} else if strings.EqualFold(rawCmd, "get") {
-			key := elementAt(inputx.Value, 1)
-			if _, err := command.Get(conn, db, key); err != nil {
-				logServerErr(err)
-			}
-		} else if strings.EqualFold(rawCmd, "command") {
-			if _, err := command.Command(conn); err != nil {
-				logServerErr(err)
-			}
-		} else {
-			diceio.SendError(conn, "unknown command '%s'", rawCmd)
+		frame := srv.dispatch(buff[0:bytesRead])
+		if _, err := resp.SerializeTo(conn, frame); err != nil {
+			srv.logger.Error(err.Error())
 		}
 	}
 	return nil
 }
 
-func logServerErr(err error) {
-	fmt.Fprintf(os.Stderr, "[SERVER] %v\tERROR: %v\n", time.Now().Format(time.DateTime), err.Error())
-}
+func (srv *DiceServer) dispatch(buff []byte) resp.Frame {
+	input, _, err := resp.Parse(buff)
+	if err != nil {
+		return resp.NewError(err.Error())
+	}
 
-func logServerInfo(msg string, args ...any) {
-	fmt.Fprintf(os.Stdout, "[SERVER] %v\t%v\n", time.Now().Format(time.DateTime), fmt.Sprintf(msg, args...))
+	array, ok := input.(*resp.Array)
+	if !ok {
+		return resp.NewError("ERR invalid request, expected non-empty array")
+	}
+
+	if len(array.Value) < 1 {
+		return resp.NewError("ERR invalid request, expected non-empty array")
+	}
+
+	for _, itemKind := range array.ItemsKinds {
+		if itemKind != resp.PAYLOAD_BULK_STRINGS {
+			return resp.NewError("ERR invalid request, expected an array of bulk strings") // TODO: check if it's the right message
+		}
+	}
+
+	cmd := string(array.Value[0])
+	args := array.Value[1:]
+	db := srv.store[srv.currentDB]
+
+	if strings.EqualFold(cmd, "ping") {
+		message := elementAt(args, 0)
+		if len(message) < 1 {
+			return &resp.SimpleString{Value: []byte("PONG")}
+		} else {
+			return &resp.BulkString{Value: message}
+		}
+	}
+
+	if strings.EqualFold(cmd, "echo") {
+		if len(args) != 1 {
+			return wrongNumberOfArgumentError(cmd)
+		}
+
+		return resp.NewBulkString(args[0])
+	}
+
+	if strings.EqualFold(cmd, "set") {
+		if len(args) != 2 {
+			return wrongNumberOfArgumentError(cmd)
+		}
+
+		return set(db, args[0], args[1])
+	}
+
+	if strings.EqualFold(cmd, "get") {
+		if len(args) != 1 {
+			return wrongNumberOfArgumentError(cmd)
+		}
+
+		return get(db, args[0])
+	}
+
+	if strings.EqualFold(cmd, "command") {
+		return resp.NewOkSimpleString()
+	}
+
+	return resp.NewError(fmt.Sprintf("unknown command '%s'", cmd))
 }

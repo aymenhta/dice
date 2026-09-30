@@ -1,4 +1,4 @@
-package payload
+package resp
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func Parse(input []byte) (IPayload, []byte, error) {
+func Parse(input []byte) (Frame, []byte, error) {
 	inputLen := len(input)
 	if inputLen < 1 {
 		return nil, nil, fmt.Errorf("something went wrong")
@@ -16,7 +16,7 @@ func Parse(input []byte) (IPayload, []byte, error) {
 		return nil, input, errors.New("invalid payload")
 	}
 
-	kind, err := PayloadKindFromByte(input[0])
+	kind, err := frameKindFromByte(input[0])
 	if err != nil {
 		return nil, input, err
 	}
@@ -39,7 +39,7 @@ func Parse(input []byte) (IPayload, []byte, error) {
 
 }
 
-func parseSimpleString(input []byte) (IPayload, []byte, error) {
+func parseSimpleString(input []byte) (Frame, []byte, error) {
 	// skip kind
 	pos := 1
 
@@ -59,12 +59,12 @@ func parseSimpleString(input []byte) (IPayload, []byte, error) {
 
 	// TODO: check if value contains \n or \r
 
-	return &SimpleStrings{
+	return &SimpleString{
 		Value: input[start:pos],
 	}, input[restIdx:], nil
 }
 
-func parseIntegers(input []byte) (IPayload, []byte, error) {
+func parseIntegers(input []byte) (Frame, []byte, error) {
 	// skip kind
 	pos := 1
 
@@ -86,12 +86,12 @@ func parseIntegers(input []byte) (IPayload, []byte, error) {
 	// skip \r \n
 	restIdx := pos + 2
 
-	return &Integers{
+	return &Integer{
 		Value: input[start:pos],
 	}, input[restIdx:], nil
 }
 
-func parseErrors(input []byte) (IPayload, []byte, error) {
+func parseErrors(input []byte) (Frame, []byte, error) {
 	// skip kind
 	pos := 1
 
@@ -109,13 +109,13 @@ func parseErrors(input []byte) (IPayload, []byte, error) {
 	// skip \r \n
 	restIdx := pos + 2
 
-	return &Errors{
+	return &Error{
 		Value: input[start:pos],
 	}, input[restIdx:], nil
 }
 
 // $<length>\r\n<data>\r\n
-func parseBulkStrings(input []byte) (IPayload, []byte, error) {
+func parseBulkStrings(input []byte) (Frame, []byte, error) {
 	inputLen := len(input)
 
 	// skip kind
@@ -127,7 +127,7 @@ func parseBulkStrings(input []byte) (IPayload, []byte, error) {
 	nextByte := safeIndex(input, pos+1)
 
 	if currentByte == '-' && nextByte == '1' {
-		return &BulkStrings{Value: nil, IsNull: true}, input[pos+4:], nil
+		return &BulkString{Value: nil, IsNull: true}, input[pos+4:], nil
 	}
 
 	for !(currentByte == '\r' && nextByte == '\n') && isDigit(currentByte) {
@@ -149,7 +149,7 @@ func parseBulkStrings(input []byte) (IPayload, []byte, error) {
 			return nil, input, errors.New("invalid payload")
 		}
 
-		return &BulkStrings{Value: []byte(""), IsNull: false}, input[pos+2:], nil
+		return &BulkString{Value: []byte(""), IsNull: false}, input[pos+2:], nil
 	}
 
 	// read until you get \r\n
@@ -173,14 +173,14 @@ func parseBulkStrings(input []byte) (IPayload, []byte, error) {
 		restIdx = inputLen
 	}
 
-	return &BulkStrings{
+	return &BulkString{
 		Value:  content,
 		IsNull: false,
 	}, input[restIdx:], nil
 }
 
 // *<number-of-elements>\r\n<element-1>...<element-n>
-func parseArrays(input []byte) (IPayload, []byte, error) {
+func parseArrays(input []byte) (Frame, []byte, error) {
 	// skip kind
 	pos := 1
 
@@ -190,7 +190,7 @@ func parseArrays(input []byte) (IPayload, []byte, error) {
 	nextByte := safeIndex(input, pos+1)
 
 	if currentByte == '-' && nextByte == '1' {
-		return &Arrays{Value: nil, IsNull: true}, input[pos+4:], nil
+		return &Array{Value: nil, ItemsKinds: nil, IsNull: true}, input[pos+4:], nil
 	}
 
 	for !(currentByte == '\r' && nextByte == '\n') && isDigit(currentByte) {
@@ -212,9 +212,9 @@ func parseArrays(input []byte) (IPayload, []byte, error) {
 	pos += 2
 
 	var container [][]byte
-
+	var itemsKinds []FrameKind
 	for range expectedLen {
-		kind, err := PayloadKindFromByte(safeIndex(input, pos))
+		kind, err := frameKindFromByte(safeIndex(input, pos))
 		if err != nil {
 			return nil, input, err
 		}
@@ -225,10 +225,11 @@ func parseArrays(input []byte) (IPayload, []byte, error) {
 				return nil, input, err
 			}
 
-			if x, ok := item.(*SimpleStrings); ok {
+			if x, ok := item.(*SimpleString); ok {
 				cloneditem := make([]byte, len(x.Value))
 				copy(cloneditem, x.Value)
 				container = append(container, cloneditem)
+				itemsKinds = append(itemsKinds, item.Kind())
 			}
 			input = restOfInput
 		} else if kind == PAYLOAD_INTEGERS {
@@ -237,10 +238,11 @@ func parseArrays(input []byte) (IPayload, []byte, error) {
 				return nil, input, err
 
 			}
-			if x, ok := item.(*Integers); ok {
+			if x, ok := item.(*Integer); ok {
 				cloneditem := make([]byte, len(x.Value))
 				copy(cloneditem, x.Value)
 				container = append(container, cloneditem)
+				itemsKinds = append(itemsKinds, item.Kind())
 			}
 			input = restOfInput
 		} else if kind == PAYLOAD_ERRORS {
@@ -249,22 +251,23 @@ func parseArrays(input []byte) (IPayload, []byte, error) {
 				return nil, input, err
 
 			}
-			if x, ok := item.(*Errors); ok {
+			if x, ok := item.(*Error); ok {
 				cloneditem := make([]byte, len(x.Value))
 				copy(cloneditem, x.Value)
 				container = append(container, cloneditem)
+				itemsKinds = append(itemsKinds, item.Kind())
 			}
 			input = restOfInput
 		} else if kind == PAYLOAD_BULK_STRINGS {
 			item, restOfInput, err := parseBulkStrings(input[pos:])
 			if err != nil {
 				return nil, input, err
-
 			}
-			if x, ok := item.(*BulkStrings); ok {
+			if x, ok := item.(*BulkString); ok {
 				cloneditem := make([]byte, len(x.Value))
 				copy(cloneditem, x.Value)
 				container = append(container, cloneditem)
+				itemsKinds = append(itemsKinds, item.Kind())
 			}
 			input = restOfInput
 		} else if kind == PAYLOAD_ARRAYS {
@@ -273,9 +276,10 @@ func parseArrays(input []byte) (IPayload, []byte, error) {
 		pos = 0
 	}
 
-	return &Arrays{
-		Value:  container,
-		IsNull: false,
+	return &Array{
+		Value:      container,
+		ItemsKinds: itemsKinds,
+		IsNull:     false,
 	}, input, nil
 }
 
