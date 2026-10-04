@@ -154,6 +154,14 @@ func (srv *DiceServer) dispatch(buff []byte, currentDB *int) resp.Frame {
 		return del(db, args)
 	}
 
+	if strings.EqualFold(cmd, "exists") {
+		if len(args) == 0 {
+			return wrongNumberOfArgumentErr(cmd)
+		}
+
+		return exists(db, args)
+	}
+
 	if strings.EqualFold(cmd, "select") {
 		if len(args) != 1 {
 			return wrongNumberOfArgumentErr(cmd)

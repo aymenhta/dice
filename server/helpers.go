@@ -14,6 +14,11 @@ func elementAt[T any](slice []T, index int) T {
 	return slice[index]
 }
 
+func lives(db DB, key []byte) bool {
+	_, ok := db[string(key)]
+	return ok
+}
+
 func wrongNumberOfArgumentErr(name string) resp.Frame {
 	message := fmt.Sprintf("ERR wrong number of arguments for '%s' command", name)
 	return resp.NewError(message)

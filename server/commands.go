@@ -30,9 +30,19 @@ func get(db DB, key []byte) resp.Frame {
 func del(db DB, keys [][]byte) resp.Frame {
 	count := 0
 	for _, key := range keys {
-		sk := string(key)
-		if _, ok := db[sk]; ok {
-			delete(db, sk)
+		if lives(db, key) {
+			delete(db, string(key))
+			count = count + 1
+		}
+	}
+
+	return &resp.Integer{Value: []byte(strconv.Itoa(count))}
+}
+
+func exists(db DB, keys [][]byte) resp.Frame {
+	count := 0
+	for _, key := range keys {
+		if lives(db, key) {
 			count = count + 1
 		}
 	}
