@@ -178,6 +178,18 @@ func (srv *DiceServer) dispatch(buff []byte, currentDB *int) resp.Frame {
 		return incr(db, args[0], -1)
 	}
 
+	if strings.EqualFold(cmd, "dbsize") {
+		return dbSize(db)
+	}
+
+	if strings.EqualFold(cmd, "flushdb") {
+		return flushDB(db)
+	}
+
+	if strings.EqualFold(cmd, "flushall") {
+		return flushAll(srv.store)
+	}
+
 	if strings.EqualFold(cmd, "select") {
 		if len(args) != 1 {
 			return wrongNumberOfArgumentErr(cmd)

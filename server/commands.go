@@ -4,7 +4,6 @@
 package server
 
 import (
-	"fmt"
 	"strconv"
 
 	"aymenhta.com/dice/resp"
@@ -66,14 +65,34 @@ func incr(db DB, key []byte, delta int64) resp.Frame {
 
 	next := strconv.AppendInt(nil, current+delta, 10)
 	db[string(key)] = next
-	res := &resp.Integer{Value: next}
-	fmt.Println(res)
-	return res
+	return &resp.Integer{Value: next}
+}
+
+func dbSize(db DB) resp.Frame {
+	return &resp.Integer{Value: []byte(strconv.Itoa(len(db)))}
+}
+
+func flushDB(db DB) resp.Frame {
+	for key := range db {
+		delete(db, key)
+	}
+
+	return resp.NewOkSimpleString()
+}
+
+func flushAll(store Store) resp.Frame {
+	for _, db := range store {
+		for key := range db {
+			delete(db, key)
+		}
+	}
+
+	return resp.NewOkSimpleString()
 }
 
 func selectCMD(index []byte, currentDB *int) resp.Frame {
 	n, err := strconv.Atoi(string(index))
-	if err == nil && n > 0 && n < MAX_DB_NUM {
+	if err == nil && n >= 0 && n < MAX_DB_NUM {
 		*currentDB = n
 		return resp.NewOkSimpleString()
 	}
