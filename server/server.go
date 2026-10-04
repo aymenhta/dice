@@ -162,6 +162,22 @@ func (srv *DiceServer) dispatch(buff []byte, currentDB *int) resp.Frame {
 		return exists(db, args)
 	}
 
+	if strings.EqualFold(cmd, "incr") {
+		if len(args) != 1 {
+			return wrongNumberOfArgumentErr(cmd)
+		}
+
+		return incr(db, args[0], 1)
+	}
+
+	if strings.EqualFold(cmd, "decr") {
+		if len(args) != 1 {
+			return wrongNumberOfArgumentErr(cmd)
+		}
+
+		return incr(db, args[0], -1)
+	}
+
 	if strings.EqualFold(cmd, "select") {
 		if len(args) != 1 {
 			return wrongNumberOfArgumentErr(cmd)

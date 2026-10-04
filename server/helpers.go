@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"aymenhta.com/dice/resp"
@@ -22,4 +23,12 @@ func lives(db DB, key []byte) bool {
 func wrongNumberOfArgumentErr(name string) resp.Frame {
 	message := fmt.Sprintf("ERR wrong number of arguments for '%s' command", name)
 	return resp.NewError(message)
+}
+
+func encodeInt64(n int64) []byte {
+	b := make([]byte, 8)
+
+	// Safe to cast: Two's Complement will handle the negative sign bits
+	binary.BigEndian.PutUint64(b, uint64(n))
+	return b
 }
