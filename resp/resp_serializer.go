@@ -75,6 +75,7 @@ func serializeIntegers(x *Integer) ([]byte, error) {
 	buff.WriteString(":")
 	buff.Write(x.Value)
 	buff.WriteString(SEP)
+
 	return buff.Bytes(), nil
 }
 

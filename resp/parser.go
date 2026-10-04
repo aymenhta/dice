@@ -67,18 +67,20 @@ func parseSimpleString(input []byte) (Frame, []byte, error) {
 func parseIntegers(input []byte) (Frame, []byte, error) {
 	// skip kind
 	pos := 1
-
 	// read until you get \r\n
 	start := pos
 	inputLen := len(input)
 	currentByte := safeIndex(input, pos)
 	nextByte := safeIndex(input, pos+1)
 	for pos < inputLen && !(currentByte == '\r' && nextByte == '\n') {
-		if !(isDigit(currentByte)) {
+		if pos == 1 && currentByte == '-' {
+			goto post_loop
+		} else if !(isDigit(currentByte)) {
 			return nil, input, errors.New("unvalid integer")
 		}
-		pos++
 
+	post_loop:
+		pos++
 		currentByte = safeIndex(input, pos)
 		nextByte = safeIndex(input, pos+1)
 	}

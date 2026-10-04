@@ -1,6 +1,7 @@
 package resp
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 )
@@ -30,7 +31,13 @@ func (x *Integer) Kind() FrameKind {
 }
 
 func (x *Integer) String() string {
-	return fmt.Sprintf("Integers(%v)", string(x.Value))
+	var xfmt string
+	if bytes.Compare(x.Value, []byte("0")) == 0 {
+		xfmt = "0"
+	} else {
+		xfmt = string(x.Value)
+	}
+	return fmt.Sprintf("Integers(%v)", xfmt)
 }
 
 type Error struct {
@@ -90,7 +97,7 @@ func (x *Array) String() string {
 		count = len(x.Value)
 		sb := strings.Builder{}
 		for i, v := range x.Value {
-			sb.WriteString(string(v))
+			sb.Write(v)
 			if i < len(x.Value)-1 {
 				sb.WriteString(", ")
 			}

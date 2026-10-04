@@ -19,10 +19,9 @@ type DB map[string][]byte
 type Store [MAX_DB_NUM]DB
 
 type DiceServer struct {
-	port      string
-	logger    *slog.Logger
-	store     Store
-	currentDB int
+	port   string
+	logger *slog.Logger
+	store  Store
 }
 
 func NewDiceServer(port string, logger *slog.Logger) *DiceServer {
@@ -36,7 +35,6 @@ func NewDiceServer(port string, logger *slog.Logger) *DiceServer {
 	srv.port = port
 	srv.logger = logger
 	srv.store = store
-	srv.currentDB = 0
 	return &srv
 }
 
@@ -66,6 +64,7 @@ func (srv *DiceServer) handleClient(conn net.Conn) error {
 
 	buff := make([]byte, 4096)
 	reader := bufio.NewReader(conn)
+	currentDB := 0
 	for {
 		bytesRead, err := reader.Read(buff)
 		if err != nil {
@@ -81,7 +80,7 @@ func (srv *DiceServer) handleClient(conn net.Conn) error {
 			break
 		}
 
-		frame := srv.dispatch(buff[0:bytesRead])
+		frame := srv.dispatch(buff[0:bytesRead], &currentDB)
 		if _, err := resp.SerializeTo(conn, frame); err != nil {
 			srv.logger.Error(err.Error())
 		}
@@ -89,7 +88,7 @@ func (srv *DiceServer) handleClient(conn net.Conn) error {
 	return nil
 }
 
-func (srv *DiceServer) dispatch(buff []byte) resp.Frame {
+func (srv *DiceServer) dispatch(buff []byte, currentDB *int) resp.Frame {
 	input, _, err := resp.Parse(buff)
 	if err != nil {
 		return resp.NewError(err.Error())
@@ -112,7 +111,7 @@ func (srv *DiceServer) dispatch(buff []byte) resp.Frame {
 
 	cmd := string(array.Value[0])
 	args := array.Value[1:]
-	db := srv.store[srv.currentDB]
+	db := srv.store[*currentDB]
 
 	if strings.EqualFold(cmd, "ping") {
 		message := elementAt(args, 0)
@@ -125,7 +124,7 @@ func (srv *DiceServer) dispatch(buff []byte) resp.Frame {
 
 	if strings.EqualFold(cmd, "echo") {
 		if len(args) != 1 {
-			return wrongNumberOfArgumentError(cmd)
+			return wrongNumberOfArgumentErr(cmd)
 		}
 
 		return resp.NewBulkString(args[0])
@@ -133,7 +132,7 @@ func (srv *DiceServer) dispatch(buff []byte) resp.Frame {
 
 	if strings.EqualFold(cmd, "set") {
 		if len(args) != 2 {
-			return wrongNumberOfArgumentError(cmd)
+			return wrongNumberOfArgumentErr(cmd)
 		}
 
 		return set(db, args[0], args[1])
@@ -141,10 +140,26 @@ func (srv *DiceServer) dispatch(buff []byte) resp.Frame {
 
 	if strings.EqualFold(cmd, "get") {
 		if len(args) != 1 {
-			return wrongNumberOfArgumentError(cmd)
+			return wrongNumberOfArgumentErr(cmd)
 		}
 
 		return get(db, args[0])
+	}
+
+	if strings.EqualFold(cmd, "del") {
+		if len(args) == 0 {
+			return wrongNumberOfArgumentErr(cmd)
+		}
+
+		return del(db, args)
+	}
+
+	if strings.EqualFold(cmd, "select") {
+		if len(args) != 1 {
+			return wrongNumberOfArgumentErr(cmd)
+		}
+
+		return selectCMD(args[0], currentDB)
 	}
 
 	if strings.EqualFold(cmd, "command") {

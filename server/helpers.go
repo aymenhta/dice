@@ -14,7 +14,7 @@ func elementAt[T any](slice []T, index int) T {
 	return slice[index]
 }
 
-func wrongNumberOfArgumentError(name string) resp.Frame {
+func wrongNumberOfArgumentErr(name string) resp.Frame {
 	message := fmt.Sprintf("ERR wrong number of arguments for '%s' command", name)
 	return resp.NewError(message)
 }

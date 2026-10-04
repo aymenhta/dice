@@ -26,6 +26,9 @@ func testPayloadParsing() {
 		"$-1\r\n",
 		"*-1\r\n",
 		"*0\r\n",
+		":0\r\n",
+		":15\r\n",
+		":-66\r\n",
 		"*1\r\n$4\r\nping\r\n",
 		"*2\r\n$4\r\necho\r\n$11\r\nhello world\r\n",
 		"*2\r\n$3\r\nget\r\n$3\r\nkey\r\n",
@@ -49,5 +52,7 @@ func testPayloadParsing() {
 		}
 
 		fmt.Printf("Parsing result is: %+v\nSerialization result == input: %v\n", item, string(serialization) == tcase)
+		fmt.Printf("Serialization is: %v\n", string(serialization))
+		fmt.Println("-------------------------------------------------------------")
 	}
 }
