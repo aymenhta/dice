@@ -15,7 +15,7 @@ func elementAt[T any](slice []T, index int) T {
 	return slice[index]
 }
 
-func lives(db DB, key []byte) bool {
+func lives(db HashMap, key []byte) bool {
 	_, ok := db[string(key)]
 	return ok
 }

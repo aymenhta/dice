@@ -8,15 +8,38 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"aymenhta.com/dice/resp"
 )
 
 const MAX_DB_NUM = 16
 
-type DB map[string][]byte
+type Entry struct {
+	value     []byte
+	expiresAt atomic.Uint64
+}
 
-type Store [MAX_DB_NUM]DB
+type HashMap map[string]*Entry
+
+type DB struct {
+	sync.RWMutex
+	hashmap HashMap
+}
+
+type Store [MAX_DB_NUM]*DB
+
+func newStore() Store {
+	var store Store
+	for i := range MAX_DB_NUM {
+		store[i] = &DB{
+			hashmap: make(HashMap),
+		}
+	}
+
+	return store
+}
 
 type DiceServer struct {
 	port   string
@@ -25,17 +48,11 @@ type DiceServer struct {
 }
 
 func NewDiceServer(port string, logger *slog.Logger) *DiceServer {
-	// initialize store
-	var store Store
-	for i := range MAX_DB_NUM {
-		store[i] = make(DB)
+	return &DiceServer{
+		port:   port,
+		logger: logger,
+		store:  newStore(),
 	}
-
-	var srv DiceServer
-	srv.port = port
-	srv.logger = logger
-	srv.store = store
-	return &srv
 }
 
 func (srv *DiceServer) Start() error {
@@ -135,7 +152,7 @@ func (srv *DiceServer) dispatch(buff []byte, currentDB *int) resp.Frame {
 			return wrongNumberOfArgumentErr(cmd)
 		}
 
-		return set(db, args[0], args[1])
+		return set(db.hashmap, args[0], args[1])
 	}
 
 	if strings.EqualFold(cmd, "get") {
@@ -143,7 +160,7 @@ func (srv *DiceServer) dispatch(buff []byte, currentDB *int) resp.Frame {
 			return wrongNumberOfArgumentErr(cmd)
 		}
 
-		return get(db, args[0])
+		return get(db.hashmap, args[0])
 	}
 
 	if strings.EqualFold(cmd, "del") {
@@ -151,7 +168,7 @@ func (srv *DiceServer) dispatch(buff []byte, currentDB *int) resp.Frame {
 			return wrongNumberOfArgumentErr(cmd)
 		}
 
-		return del(db, args)
+		return del(db.hashmap, args)
 	}
 
 	if strings.EqualFold(cmd, "exists") {
@@ -159,7 +176,7 @@ func (srv *DiceServer) dispatch(buff []byte, currentDB *int) resp.Frame {
 			return wrongNumberOfArgumentErr(cmd)
 		}
 
-		return exists(db, args)
+		return exists(db.hashmap, args)
 	}
 
 	if strings.EqualFold(cmd, "incr") {
@@ -167,7 +184,7 @@ func (srv *DiceServer) dispatch(buff []byte, currentDB *int) resp.Frame {
 			return wrongNumberOfArgumentErr(cmd)
 		}
 
-		return incr(db, args[0], 1)
+		return incr(db.hashmap, args[0], 1)
 	}
 
 	if strings.EqualFold(cmd, "decr") {
@@ -175,15 +192,15 @@ func (srv *DiceServer) dispatch(buff []byte, currentDB *int) resp.Frame {
 			return wrongNumberOfArgumentErr(cmd)
 		}
 
-		return incr(db, args[0], -1)
+		return incr(db.hashmap, args[0], -1)
 	}
 
 	if strings.EqualFold(cmd, "dbsize") {
-		return dbSize(db)
+		return dbSize(db.hashmap)
 	}
 
 	if strings.EqualFold(cmd, "flushdb") {
-		return flushDB(db)
+		return flushDB(db.hashmap)
 	}
 
 	if strings.EqualFold(cmd, "flushall") {

@@ -13,21 +13,24 @@ func Command() resp.Frame {
 	return resp.NewOkSimpleString()
 }
 
-func set(db DB, key, value []byte) resp.Frame {
-	db[string(key)] = value
+func set(db HashMap, key, value []byte) resp.Frame {
+	db[string(key)] = &Entry{
+		value: value,
+		// expiresAt: , // TODO: implement the expires at option
+	}
 	return resp.NewOkSimpleString()
 }
 
-func get(db DB, key []byte) resp.Frame {
-	value, ok := db[string(key)]
+func get(db HashMap, key []byte) resp.Frame {
+	entry, ok := db[string(key)]
 	if !ok {
 		return resp.NewNullBulkString()
 	}
 
-	return resp.NewBulkString(value)
+	return resp.NewBulkString(entry.value)
 }
 
-func del(db DB, keys [][]byte) resp.Frame {
+func del(db HashMap, keys [][]byte) resp.Frame {
 	var count int64
 	for _, key := range keys {
 		if lives(db, key) {
@@ -39,7 +42,7 @@ func del(db DB, keys [][]byte) resp.Frame {
 	return &resp.Integer{Value: strconv.AppendInt(nil, count, 10)}
 }
 
-func exists(db DB, keys [][]byte) resp.Frame {
+func exists(db HashMap, keys [][]byte) resp.Frame {
 	var count int64
 	for _, key := range keys {
 		if lives(db, key) {
@@ -50,12 +53,12 @@ func exists(db DB, keys [][]byte) resp.Frame {
 	return &resp.Integer{Value: strconv.AppendInt(nil, count, 10)}
 }
 
-func incr(db DB, key []byte, delta int64) resp.Frame {
+func incr(db HashMap, key []byte, delta int64) resp.Frame {
 	var current int64
-	v, ok := db[string(key)]
+	entry, ok := db[string(key)]
 
 	if ok {
-		n, err := strconv.ParseInt(string(v), 10, 64)
+		n, err := strconv.ParseInt(string(entry.value), 10, 64)
 		if err != nil {
 			return resp.NewError("ERR value is not an integer or out of range")
 		}
@@ -64,15 +67,15 @@ func incr(db DB, key []byte, delta int64) resp.Frame {
 	}
 
 	next := strconv.AppendInt(nil, current+delta, 10)
-	db[string(key)] = next
+	db[string(key)] = &Entry{value: next}
 	return &resp.Integer{Value: next}
 }
 
-func dbSize(db DB) resp.Frame {
+func dbSize(db HashMap) resp.Frame {
 	return &resp.Integer{Value: []byte(strconv.Itoa(len(db)))}
 }
 
-func flushDB(db DB) resp.Frame {
+func flushDB(db HashMap) resp.Frame {
 	for key := range db {
 		delete(db, key)
 	}
@@ -82,8 +85,8 @@ func flushDB(db DB) resp.Frame {
 
 func flushAll(store Store) resp.Frame {
 	for _, db := range store {
-		for key := range db {
-			delete(db, key)
+		for key := range db.hashmap {
+			delete(db.hashmap, key)
 		}
 	}
 
