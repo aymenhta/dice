@@ -7,4 +7,8 @@ var (
 	ErrProtoInvalidMultiBulkLength = errors.New("Protocol error: invalid multibulk length")
 	ErrProtoInvalidBulkLength      = errors.New("Protocol error: invalid bulk length")
 	ErrProtoExpectedString         = errors.New("Protocol error: expected '$'")
+	ErrSyntaxError                 = errors.New("syntax error")
+	ErrBadDigest                   = errors.New("digest must be exactly 16 hexadecimal characters")
+	ErrNotInt                      = errors.New("value is not an integer or out of range")
+	ErrIncrDecrOverflow            = errors.New("increment or decrement would overflow")
 )

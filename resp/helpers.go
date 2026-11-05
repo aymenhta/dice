@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"aymenhta.com/dice/resp/static"
@@ -42,6 +43,12 @@ func bytesToLower(b []byte) []byte {
 	}
 
 	return b
+}
+
+func copyBytes(b []byte) []byte {
+	out := make([]byte, len(b))
+	copy(out, b)
+	return out
 }
 
 // Expand works similarly to slices.Grow but returns the expanded slice rather than the capped slice.
@@ -111,6 +118,46 @@ func ParseInt64(b []byte) (int64, error) {
 		return 0, strconv.ErrRange
 	}
 	return int64(v), nil
+}
+
+func ParseUInt64(b []byte) (uint64, error) {
+	l := len(b)
+	if l == 0 || l > 20 {
+		return 0, strconv.ErrSyntax
+	}
+
+	// Handle zero and reject leading zeros.
+	c := b[0] - '0'
+	if c > 9 {
+		return 0, strconv.ErrSyntax
+	}
+	if c == 0 {
+		if l == 1 {
+			return 0, nil
+		}
+		return 0, strconv.ErrSyntax
+	}
+
+	v := uint64(c)
+
+	for i := 1; i < l; i++ {
+		c = b[i] - '0'
+		if c > 9 {
+			return 0, strconv.ErrSyntax
+		}
+
+		digit := uint64(c)
+
+		// Check whether v*10 + digit would overflow uint64.
+		if v > math.MaxUint64/10 ||
+			(v == math.MaxUint64/10 && digit > math.MaxUint64%10) {
+			return 0, strconv.ErrRange
+		}
+
+		v = v*10 + digit
+	}
+
+	return v, nil
 }
 
 func ParseUInt32(b []byte) (uint32, error) {
@@ -198,4 +245,39 @@ func Pointer[T any](v T) *T {
 
 func wrongArgsNum(cmd string) error {
 	return fmt.Errorf("wrong number of arguments for '%s' command", cmd)
+}
+
+func invalidExpire(cmd string) error {
+	return fmt.Errorf("invalid expire time in '%s' command", cmd)
+}
+
+// unixMsToInstant converts an absolute unix timestamp (ms) into a monotonic deadline.
+// A timestamp already in the past yields "now", i.e., already expired.
+func UnixMsToInstant(targetMs int64) time.Time {
+	now := time.Now()
+	nowMs := now.UnixNano() / int64(time.Millisecond)
+
+	delta := targetMs - nowMs
+	if delta <= 0 {
+		return now
+	}
+
+	return now.Add(time.Duration(delta) * time.Millisecond)
+}
+
+// Add64 checks for overflow before returning the sum
+func Add64(a, b int64) (int64, bool) {
+	sum := a + b
+
+	// If 'a' and 'b' have the same sign, but 'sum' has a different sign,
+	// a signed integer overflow/underflow occurred.
+	if (a^sum)&(b^sum) < 0 {
+		return 0, false // Overflow occurred
+	}
+
+	return sum, true // Safe addition
+}
+
+func Int64ToBytes(val int64) []byte {
+	return strconv.AppendInt(nil, val, 10)
 }

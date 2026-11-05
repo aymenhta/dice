@@ -5,9 +5,19 @@ import (
 	"net"
 
 	"aymenhta.com/dice/resp"
+	"aymenhta.com/dice/store"
 )
 
 func main() {
+	// db := store.NewDB[any]()
+
+	// db.Set("name", "john")
+	// db.Set("age", 33)
+	// db.Set("email", "contact@example.com")
+
+	// removed := db.BatchRemove([]string{"name", "age"})
+	// fmt.Printf("%d were removed\n", removed)
+
 	l, err := net.Listen("tcp", ":8888")
 	if err != nil {
 		log.Fatal(err)
@@ -16,16 +26,18 @@ func main() {
 
 	log.Println("Server started listening on port 8888")
 
+	store := store.NewStore()
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			log.Fatal(err)
 		}
-		go handleClient(conn)
+		go handleClient(conn, store)
 	}
 }
 
-func handleClient(conn net.Conn) {
+func handleClient(conn net.Conn, store *store.Store) {
 	defer conn.Close()
 
 	handler := resp.NewClientHandler(conn)
@@ -49,7 +61,7 @@ func handleClient(conn net.Conn) {
 			return
 		}
 
-		if handler.Dispatch(args); err != nil {
+		if handler.Dispatch(store, args); err != nil {
 			log.Printf("closed connection from %s during write: %v\n", conn.RemoteAddr(), err)
 			return
 		}

@@ -11,6 +11,7 @@ import (
 	"aymenhta.com/dice/resp/doublebuffer"
 	"aymenhta.com/dice/resp/static"
 	"aymenhta.com/dice/resp/types"
+	"aymenhta.com/dice/store"
 )
 
 const ReaderBufferSize = 65536
@@ -34,25 +35,10 @@ type ClientHandler struct {
 	maxBulkLength      int
 	maxBufferSize      int
 
+	// store
+	currentDB int
+
 	resp2compat bool
-}
-
-func (h *ClientHandler) Dispatch(args [][]byte) error {
-	cmd := bstring(bytesToLower(args[0]))
-	args = args[1:]
-
-	switch cmd {
-	case "ping":
-		return h.cmdPing(args)
-	case "echo":
-		return h.cmdEcho(args)
-	case "command":
-		return h.cmdCommand()
-	case "quit":
-		return h.cmdQuit()
-	default:
-		return h.WriteError(fmt.Errorf("unkown command '%s'", cmd))
-	}
 }
 
 type ClientHandlerOpts struct {
@@ -80,8 +66,49 @@ func NewClientHandler(rw io.ReadWriter) *ClientHandler {
 		maxBulkLength:      MaxBulkLength,
 		maxBufferSize:      MaxMultiBulkLength * MaxBulkLength,
 		appendIntBuf:       make([]byte, 0, 20),
+		currentDB:          0,
 	}
 	return s
+}
+
+func (h *ClientHandler) Dispatch(store *store.Store, args [][]byte) error {
+	cmd := bstring(bytesToLower(args[0]))
+	args = args[1:]
+
+	db := store.DB[h.currentDB]
+
+	switch cmd {
+	case "ping":
+		return h.cmdPing(args)
+	case "echo":
+		return h.cmdEcho(args)
+	case "set":
+		return h.cmdSet(db, args)
+	case "get":
+		return h.cmdGet(db, args)
+	case "del":
+		return h.cmdDel(db, args)
+	case "exists":
+		return h.cmdExists(db, args)
+	case "expire":
+		return h.cmdExpire(db, args)
+	case "ttl":
+		return h.cmdTtl(db, args)
+	case "incr":
+		return h.cmdIncr(db, args)
+	case "decr":
+		return h.cmdDecr(db, args)
+	case "incrby":
+		return h.cmdIncrBy(db, args)
+	case "decrby":
+		return h.cmdDecrBy(db, args)
+	case "command":
+		return h.cmdCommand()
+	case "quit":
+		return h.cmdQuit()
+	default:
+		return h.WriteError(fmt.Errorf("unkown command '%s'", cmd))
+	}
 }
 
 // ResetReader starts reading commands from the newly passed reader. Mostly used for testing purposes.
@@ -423,8 +450,8 @@ func (h *ClientHandler) next() ([][]byte, error) {
 		return nil, nil
 	}
 
-	fmt.Println("=====================================")
-	fmt.Println("array size is:", n)
+	// fmt.Println("=====================================")
+	// fmt.Println("array size is:", n)
 
 	argsRefs := Expand(h.argsRefs, n)
 	argsBounds := Expand(h.argsBounds, int(n)*2)
@@ -459,9 +486,9 @@ func (h *ClientHandler) next() ([][]byte, error) {
 		if _, err := io.ReadFull(h.rd, readBufferChunk); err != nil {
 			return nil, err
 		}
-		fmt.Printf("read data (%v) is: %v--\n", len(string(readBufferChunk)), string(readBufferChunk))
+		// fmt.Printf("read data (%v) is: %v--\n", len(string(readBufferChunk)), string(readBufferChunk))
 		p += l
-		fmt.Println("string size is:", l)
+		// fmt.Println("string size is:", l)
 	}
 	for i := 0; i < n; i++ {
 		argsRefs[i] = argsBuffer[argsBounds[i*2] : argsBounds[i*2]+argsBounds[i*2+1]]
@@ -565,6 +592,14 @@ func (h *ClientHandler) WriteSimpleString(v string) error {
 // WriteError writes a sanitized [Simple error](https://redis.io/docs/latest/develop/reference/protocol-spec/#error-reply).
 func (h *ClientHandler) WriteError(e error) error {
 	return h.writeWithPrefix(static.RespPrefixedErrorBytes, sbytes(e.Error()), nil)
+}
+
+func (h *ClientHandler) WriteWrongTypeError() error {
+	return h.writeWithPrefix(
+		static.RespPrefixedWrongTypeErrBytes,
+		sbytes("Operation against a key holding the wrong kind of value"),
+		nil,
+	)
 }
 
 // WriteOK is a convenience method for calling WriteStatusBytes with "OK".
