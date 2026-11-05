@@ -9,15 +9,6 @@ import (
 )
 
 func main() {
-	// db := store.NewDB[any]()
-
-	// db.Set("name", "john")
-	// db.Set("age", 33)
-	// db.Set("email", "contact@example.com")
-
-	// removed := db.BatchRemove([]string{"name", "age"})
-	// fmt.Printf("%d were removed\n", removed)
-
 	l, err := net.Listen("tcp", ":8888")
 	if err != nil {
 		log.Fatal(err)

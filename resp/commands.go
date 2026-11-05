@@ -531,6 +531,34 @@ func (h *ClientHandler) cmdDecrBy(db *store.Database[string, *store.Entry], args
 	return h.incr_decrByDelta(db, args, -delta)
 }
 
+func (h *ClientHandler) cmdMGet(db *store.Database[string, *store.Entry], args [][]byte) error {
+	if len(args) == 0 {
+		return h.WriteError(wrongArgsNum("mget"))
+	}
+
+	h.WriteArrayHeader(len(args))
+	for _, arg := range args {
+		if h.werr != nil {
+			return h.werr
+		}
+		key := bstring(arg)
+		entry, ok := lives(db, key)
+		if !ok {
+			h.WriteNullString()
+			continue
+		}
+
+		typedEntry, valid := store.EntryValue[*store.String](entry, store.STRING_KIND)
+		if !valid {
+			h.WriteNullString()
+		} else {
+			h.WriteBytes(typedEntry.Value)
+		}
+	}
+
+	return h.werr
+}
+
 func (h *ClientHandler) cmdQuit() error {
 	return h.WriteSimpleString("OK")
 }
