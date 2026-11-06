@@ -84,6 +84,12 @@ func (db *Database[K]) GetAndRemove(key K) ([]byte, bool, bool) {
 	return value, true, true
 }
 
+func (db *Database[K]) Size() int {
+	db.RLock()
+	defer db.RUnlock()
+	return len(db.body)
+}
+
 func (db *Database[K]) debugMap() {
 	println("====================================================")
 	fmt.Println("key -> value")

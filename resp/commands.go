@@ -616,6 +616,10 @@ func (h *ClientHandler) cmdType(db *store.Database[string], args [][]byte) error
 	return h.WriteSimpleString(entry.Value.TypeName())
 }
 
+func (h *ClientHandler) cmdDbSize(db *store.Database[string]) error {
+	return h.WriteInt(db.Size())
+}
+
 func (h *ClientHandler) cmdQuit() error {
 	return h.WriteSimpleString("OK")
 }
