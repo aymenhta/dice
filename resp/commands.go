@@ -48,6 +48,7 @@ const (
 	SET_TTL_EXAT
 	SET_TTL_PXAT
 	SET_TTL_KEEPTTL
+	SET_TTL_PERSIST
 )
 
 func ttl_value_option(opt string) *SetTtlKind {
@@ -675,6 +676,81 @@ func (h *ClientHandler) cmdDelEx(db *store.Database[string], args [][]byte) erro
 
 	db.Remove(key)
 	return h.WriteInt64(1)
+}
+
+// GETEX key [EX s | PX ms | EXAT ts | PXAT ms-ts | PERSIST]
+func (h *ClientHandler) cmdGetEx(db *store.Database[string], args [][]byte) error {
+	if len(args) == 0 {
+		return h.WriteError(wrongArgsNum("getex"))
+	}
+
+	key := bstring(args[0])
+	ttl := &SetTTL{action: SET_TTL_KEEP}
+
+	i := 1
+	for i < len(args) {
+		opt := bstring(bytesToLower(args[i]))
+		if opt == "persist" {
+			if ttl.kind != nil && *ttl.kind != SET_TTL_PERSIST {
+				return h.WriteError(ErrSyntaxError)
+			}
+			ttl.kind = Pointer(SET_TTL_PERSIST)
+			ttl.action = SET_TTL_CLEAR
+			i += 1
+		} else {
+			k := ttl_value_option(opt)
+			if k != nil {
+				if i+1 >= len(args) {
+					return h.WriteError(ErrSyntaxError)
+				}
+
+				if ttl.kind != nil && *ttl.kind != *k {
+					return h.WriteError(ErrSyntaxError)
+				}
+
+				n, err := ParseInt64(args[i+1])
+				if err != nil {
+					return h.WriteError(err)
+				}
+
+				t, err := expiryToTime(*k, n, "getex")
+				if err != nil {
+					return h.WriteError(err)
+				}
+
+				ttl.new_ttl = t
+				ttl.action = SET_TTL_AT
+				ttl.kind = k
+				i += 2
+			} else {
+				return h.WriteError(ErrSyntaxError)
+			}
+		}
+	}
+
+	now := time.Now()
+	entry, ok := db.Get(key)
+	if !ok {
+		return h.WriteNullString()
+	}
+
+	if entry.IsExpired(now) {
+		db.Remove(key)
+		return h.WriteNullString()
+	}
+
+	strEntry, tok := entry.AsStr()
+	if !tok {
+		return h.WriteWrongTypeError()
+	}
+
+	if ttl.action == SET_TTL_CLEAR {
+		entry.Ttl = nil
+	} else if ttl.action == SET_TTL_AT {
+		entry.Ttl = ttl.new_ttl
+	}
+
+	return h.WriteBytes(strEntry.Value)
 }
 
 func (h *ClientHandler) cmdStrLen(db *store.Database[string], args [][]byte) error {
