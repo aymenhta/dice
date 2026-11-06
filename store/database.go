@@ -90,6 +90,12 @@ func (db *Database[K]) Size() int {
 	return len(db.body)
 }
 
+func (db *Database[K]) Clear() {
+	db.Lock()
+	clear(db.body)
+	defer db.Unlock()
+}
+
 func (db *Database[K]) debugMap() {
 	println("====================================================")
 	fmt.Println("key -> value")

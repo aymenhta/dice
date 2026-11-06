@@ -621,6 +621,18 @@ func (h *ClientHandler) cmdDbSize(db *store.Database[string]) error {
 	return h.WriteInt(db.Size())
 }
 
+func (h *ClientHandler) cmdFlushDb(db *store.Database[string]) error {
+	db.Clear()
+	return h.WriteSimpleString("OK")
+}
+
+func (h *ClientHandler) cmdFlushAll(st *store.Store) error {
+	for _, db := range st.DB {
+		db.Clear()
+	}
+	return h.WriteSimpleString("OK")
+}
+
 func (h *ClientHandler) cmdSelect(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
 		return h.WriteError(wrongArgsNum("select"))

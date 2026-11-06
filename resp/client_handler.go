@@ -114,6 +114,10 @@ func (h *ClientHandler) Dispatch(store *store.Store, args [][]byte) error {
 		return h.cmdType(db, args)
 	case "dbsize":
 		return h.cmdDbSize(db)
+	case "flushdb":
+		return h.cmdFlushDb(db)
+	case "flushall":
+		return h.cmdFlushAll(store)
 	case "select":
 		return h.cmdSelect(db, args)
 	case "command":
