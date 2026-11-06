@@ -583,6 +583,20 @@ func (h *ClientHandler) cmdGetDel(db *store.Database[string], args [][]byte) err
 	return h.WriteBytes(value)
 }
 
+func (h *ClientHandler) cmdType(db *store.Database[string], args [][]byte) error {
+	if len(args) != 1 {
+		return h.WriteError(wrongArgsNum("type"))
+	}
+
+	key := bstring(args[0])
+	entry, ok := lives(db, key)
+	if !ok {
+		return h.WriteSimpleString("none")
+	}
+
+	return h.WriteSimpleString(entry.Value.TypeName())
+}
+
 func (h *ClientHandler) cmdQuit() error {
 	return h.WriteSimpleString("OK")
 }

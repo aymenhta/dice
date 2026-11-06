@@ -11,6 +11,7 @@ const (
 
 type IEntryType interface {
 	Kind() EntryKind
+	TypeName() string
 }
 
 type String struct {
@@ -19,6 +20,10 @@ type String struct {
 
 func (s *String) Kind() EntryKind {
 	return STRING_KIND
+}
+
+func (s *String) TypeName() string {
+	return "string"
 }
 
 type HashField struct {
@@ -32,4 +37,8 @@ type Hash struct {
 
 func (h *Hash) Kind() EntryKind {
 	return HASH_KIND
+}
+
+func (s *Hash) TypeName() string {
+	return "hash"
 }
