@@ -2,6 +2,7 @@ package resp
 
 import (
 	"bytes"
+	"fmt"
 	"slices"
 	"time"
 
@@ -618,6 +619,24 @@ func (h *ClientHandler) cmdType(db *store.Database[string], args [][]byte) error
 
 func (h *ClientHandler) cmdDbSize(db *store.Database[string]) error {
 	return h.WriteInt(db.Size())
+}
+
+func (h *ClientHandler) cmdSelect(db *store.Database[string], args [][]byte) error {
+	if len(args) != 1 {
+		return h.WriteError(wrongArgsNum("select"))
+	}
+
+	n, err := ParseInt32(args[0])
+	if err != nil {
+		return h.WriteError(err)
+	}
+
+	if n < 0 || n >= store.DB_NUM {
+		return h.WriteError(fmt.Errorf("DB index is out of range"))
+	}
+
+	h.currentDB = int(n)
+	return h.WriteSimpleString("OK")
 }
 
 func (h *ClientHandler) cmdQuit() error {

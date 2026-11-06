@@ -113,7 +113,9 @@ func (h *ClientHandler) Dispatch(store *store.Store, args [][]byte) error {
 	case "type":
 		return h.cmdType(db, args)
 	case "dbsize":
-		return h.cmdDbSize()
+		return h.cmdDbSize(db)
+	case "select":
+		return h.cmdSelect(db, args)
 	case "command":
 		return h.cmdCommand()
 	case "quit":
