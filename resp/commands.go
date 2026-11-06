@@ -162,7 +162,7 @@ func (x *SetTTL) expires_at() *time.Time {
 	return nil
 }
 
-func (h *ClientHandler) cmdSet(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdSet(db *store.Database[string], args [][]byte) error {
 	if len(args) < 2 {
 		return h.WriteError(wrongArgsNum("set"))
 	}
@@ -273,7 +273,7 @@ func (h *ClientHandler) cmdSet(db *store.Database[string, *store.Entry], args []
 	} else {
 		exists := !entry.IsExpired(now)
 
-		typedEntry, tok := store.EntryValue[*store.String](entry, store.STRING_KIND)
+		typedEntry, tok := entry.AsStr()
 		if !tok {
 			return h.WriteWrongTypeError()
 		}
@@ -314,7 +314,7 @@ func (h *ClientHandler) cmdSet(db *store.Database[string, *store.Entry], args []
 	}
 }
 
-func (h *ClientHandler) cmdGet(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdGet(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
 		return h.WriteError(wrongArgsNum("get"))
 	}
@@ -326,14 +326,14 @@ func (h *ClientHandler) cmdGet(db *store.Database[string, *store.Entry], args []
 		return h.WriteNullString()
 	}
 
-	typedEntry, tok := store.EntryValue[*store.String](entry, store.STRING_KIND)
+	typedEntry, tok := entry.AsStr()
 	if !tok {
 		return h.WriteWrongTypeError()
 	}
 	return h.WriteBytes(typedEntry.Value)
 }
 
-func (h *ClientHandler) cmdDel(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdDel(db *store.Database[string], args [][]byte) error {
 	if len(args) == 0 {
 		return h.WriteError(wrongArgsNum("del"))
 	}
@@ -349,7 +349,7 @@ func (h *ClientHandler) cmdDel(db *store.Database[string, *store.Entry], args []
 	return h.WriteInt64(removed)
 }
 
-func (h *ClientHandler) cmdExists(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdExists(db *store.Database[string], args [][]byte) error {
 	if len(args) == 0 {
 		return h.WriteError(wrongArgsNum("exists"))
 	}
@@ -384,7 +384,7 @@ func isExpireAllowed(cond []byte, new_ttl time.Time, old_ttl *time.Time) (bool, 
 	}
 }
 
-func (h *ClientHandler) cmdExpire(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdExpire(db *store.Database[string], args [][]byte) error {
 	if len(args) < 2 || len(args) > 3 {
 		return h.WriteError(wrongArgsNum("exists"))
 	}
@@ -422,7 +422,7 @@ func (h *ClientHandler) cmdExpire(db *store.Database[string, *store.Entry], args
 	return h.WriteInt(1)
 }
 
-func (h *ClientHandler) cmdTtl(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdTtl(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
 		return h.WriteError(wrongArgsNum("ttl"))
 	}
@@ -442,7 +442,7 @@ func (h *ClientHandler) cmdTtl(db *store.Database[string, *store.Entry], args []
 	return h.WriteInt64(int64(remaining))
 }
 
-func (h *ClientHandler) incr_decrByDelta(db *store.Database[string, *store.Entry], args [][]byte, delta int64) error {
+func (h *ClientHandler) incr_decrByDelta(db *store.Database[string], args [][]byte, delta int64) error {
 
 	key := bstring(copyBytes(args[0]))
 	entry, ok := db.Get(key)
@@ -457,7 +457,7 @@ func (h *ClientHandler) incr_decrByDelta(db *store.Database[string, *store.Entry
 		return h.WriteInt64(delta)
 	}
 
-	typedEntry, ok := store.EntryValue[*store.String](entry, store.STRING_KIND)
+	typedEntry, ok := entry.AsStr()
 	if !ok {
 		return h.WriteWrongTypeError()
 	}
@@ -476,7 +476,7 @@ func (h *ClientHandler) incr_decrByDelta(db *store.Database[string, *store.Entry
 	return h.WriteInt64(next)
 }
 
-func (h *ClientHandler) cmdIncr(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdIncr(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
 		return h.WriteError(wrongArgsNum("incr"))
 	}
@@ -484,7 +484,7 @@ func (h *ClientHandler) cmdIncr(db *store.Database[string, *store.Entry], args [
 	return h.incr_decrByDelta(db, args, 1)
 }
 
-func (h *ClientHandler) cmdDecr(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdDecr(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
 		return h.WriteError(wrongArgsNum("decr"))
 	}
@@ -492,7 +492,7 @@ func (h *ClientHandler) cmdDecr(db *store.Database[string, *store.Entry], args [
 	return h.incr_decrByDelta(db, args, -1)
 }
 
-func (h *ClientHandler) cmdIncrBy(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdIncrBy(db *store.Database[string], args [][]byte) error {
 	if len(args) != 2 {
 		return h.WriteError(wrongArgsNum("incrby"))
 	}
@@ -504,7 +504,7 @@ func (h *ClientHandler) cmdIncrBy(db *store.Database[string, *store.Entry], args
 
 	return h.incr_decrByDelta(db, args, delta)
 }
-func (h *ClientHandler) cmdDecrBy(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdDecrBy(db *store.Database[string], args [][]byte) error {
 	if len(args) != 2 {
 		return h.WriteError(wrongArgsNum("decrby"))
 	}
@@ -517,7 +517,7 @@ func (h *ClientHandler) cmdDecrBy(db *store.Database[string, *store.Entry], args
 	return h.incr_decrByDelta(db, args, -delta)
 }
 
-func (h *ClientHandler) cmdMGet(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdMGet(db *store.Database[string], args [][]byte) error {
 	if len(args) == 0 {
 		return h.WriteError(wrongArgsNum("mget"))
 	}
@@ -534,7 +534,7 @@ func (h *ClientHandler) cmdMGet(db *store.Database[string, *store.Entry], args [
 			continue
 		}
 
-		typedEntry, valid := store.EntryValue[*store.String](entry, store.STRING_KIND)
+		typedEntry, valid := entry.AsStr()
 		if !valid {
 			h.WriteNullString()
 		} else {
@@ -548,7 +548,7 @@ func (h *ClientHandler) cmdMGet(db *store.Database[string, *store.Entry], args [
 // Each pair is written atomically, but the batch as a whole is NOT atomic:
 // another connection can observe some keys set and others not yet.
 // Like SET, MSET discards any existing TTL.
-func (h *ClientHandler) cmdMSet(db *store.Database[string, *store.Entry], args [][]byte) error {
+func (h *ClientHandler) cmdMSet(db *store.Database[string], args [][]byte) error {
 	if len(args) != 0 && len(args)%2 != 0 {
 		return h.WriteError(wrongArgsNum("mset"))
 	}
@@ -565,6 +565,24 @@ func (h *ClientHandler) cmdMSet(db *store.Database[string, *store.Entry], args [
 	return h.WriteSimpleString("OK")
 }
 
+func (h *ClientHandler) cmdGetDel(db *store.Database[string], args [][]byte) error {
+	if len(args) != 1 {
+		return h.WriteError(wrongArgsNum("getdel"))
+	}
+
+	key := bstring(args[0])
+	value, exists, strTyped := db.GetAndRemove(key)
+	if !exists {
+		return h.WriteNullString()
+	}
+
+	if !strTyped {
+		return h.WriteWrongTypeError()
+	}
+
+	return h.WriteBytes(value)
+}
+
 func (h *ClientHandler) cmdQuit() error {
 	return h.WriteSimpleString("OK")
 }
@@ -573,7 +591,7 @@ func (h *ClientHandler) cmdCommand() error {
 	return h.WriteSimpleString("OK")
 }
 
-func lives(db *store.Database[string, *store.Entry], key string) (*store.Entry, bool) {
+func lives(db *store.Database[string], key string) (*store.Entry, bool) {
 	entry, exists := db.Get(key)
 	if !exists {
 		return nil, false

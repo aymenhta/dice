@@ -26,23 +26,34 @@ func (e *Entry) IsExpired(now time.Time) bool {
 	return now.Equal(*e.Ttl) || now.After(*e.Ttl)
 }
 
-func EntryValue[T IEntryType](entry *Entry, kind EntryKind) (T, bool) {
-	var typedEntry T
-
-	if entry.Value.Kind() != kind {
-		return typedEntry, false
+func (e *Entry) AsStr() (*String, bool) {
+	if e.Value.Kind() != STRING_KIND {
+		return nil, false
 	}
 
-	typedEntry, ok := entry.Value.(T)
+	stringValue, ok := e.Value.(*String)
 	if !ok {
-		return typedEntry, false
+		return nil, false
 	}
 
-	return typedEntry, true
+	return stringValue, true
+}
+
+func (e *Entry) AsHash() (*Hash, bool) {
+	if e.Value.Kind() != HASH_KIND {
+		return nil, false
+	}
+
+	hashValue, ok := e.Value.(*Hash)
+	if !ok {
+		return nil, false
+	}
+
+	return hashValue, true
 }
 
 type Store struct {
-	DB [DB_NUM]*Database[string, *Entry]
+	DB [DB_NUM]*Database[string]
 }
 
 func NewStore() *Store {
