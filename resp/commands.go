@@ -416,7 +416,7 @@ func isExpireAllowed(cond []byte, new_ttl time.Time, old_ttl *time.Time) (bool, 
 
 func (h *ClientHandler) cmdExpire(db *store.Database[string], args [][]byte) error {
 	if len(args) < 2 || len(args) > 3 {
-		return h.WriteError(wrongArgsNum("exists"))
+		return h.WriteError(wrongArgsNum("expire"))
 	}
 
 	key := bstring(args[0])
@@ -770,6 +770,41 @@ func (h *ClientHandler) cmdStrLen(db *store.Database[string], args [][]byte) err
 	}
 
 	return h.WriteInt(len(strEntry.Value))
+}
+
+func (h *ClientHandler) cmdAppend(db *store.Database[string], args [][]byte) error {
+	if len(args) != 2 {
+		return h.WriteError(wrongArgsNum("append"))
+	}
+
+	key := bstring(copyBytes(args[0]))
+	suffix := copyBytes(args[1])
+
+	now := time.Now()
+
+	entry, ok := db.Get(key)
+	if !ok || entry.IsExpired(now) {
+		l := len(suffix)
+		db.Set(key, store.NewStringEntry(suffix, nil))
+		return h.WriteInt(l)
+	}
+
+	strEntry, tok := entry.AsStr()
+	if !tok {
+		return h.WriteWrongTypeError()
+	}
+
+	nl := len(strEntry.Value) + len(suffix)
+	if nl > h.maxBulkLength {
+		return h.WriteError(ErrProtoInvalidBulkLength)
+	}
+
+	var buff bytes.Buffer
+	buff.Write(strEntry.Value)
+	buff.Write(suffix)
+	strEntry.Value = buff.Bytes()
+
+	return h.WriteInt(nl)
 }
 
 func (h *ClientHandler) cmdDigest(db *store.Database[string], args [][]byte) error {

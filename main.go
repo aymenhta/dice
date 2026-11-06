@@ -37,7 +37,7 @@ func handleClient(conn net.Conn, store *store.Store) {
 	log.Printf("new client has arrived %+v\n", conn.RemoteAddr())
 
 	if err := handler.SetOptions(resp.ClientHandlerOpts{
-		MaxMultiBulkLength: resp.Pointer(1024),
+		MaxMultiBulkLength: resp.Pointer(512 * 1024 * 1024),
 		MaxBulkLength:      resp.Pointer(65 * 1024 * 1024),
 		MaxBufferSize:      resp.Pointer(4096),
 	}); err != nil {

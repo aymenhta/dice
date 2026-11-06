@@ -114,6 +114,8 @@ func (h *ClientHandler) Dispatch(store *store.Store, args [][]byte) error {
 		return h.cmdGetEx(db, args)
 	case "strlen":
 		return h.cmdStrLen(db, args)
+	case "append":
+		return h.cmdAppend(db, args)
 	case "digest":
 		return h.cmdDigest(db, args)
 	case "type":
