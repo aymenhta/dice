@@ -97,7 +97,15 @@ func (sc *SetCondition) cond_allows(current []byte) bool {
 	case sc.kind == SET_IFNE && current == nil:
 		return true
 
-	// TODO: implement digest comparisons
+	case sc.kind == SET_IFDEQ && current != nil:
+		return BytesToXXH3hex(current) == bstring(sc.cmp_value)
+	case sc.kind == SET_IFDEQ && current == nil:
+		return false
+
+	case sc.kind == SET_IFDNE && current != nil:
+		return BytesToXXH3hex(current) != bstring(sc.cmp_value)
+	case sc.kind == SET_IFDNE && current == nil:
+		return true
 
 	default:
 		return true
@@ -216,6 +224,26 @@ func (h *ClientHandler) cmdSet(db *store.Database[string], args [][]byte) error 
 				return h.WriteError(ErrSyntaxError)
 			}
 			cond.kind = SET_IFNE
+			cond.cmp_value = copyBytes(args[i+1])
+			i = i + 2
+		} else if option == "ifdeq" {
+			if cond.kind != SET_ALWAYS {
+				return h.WriteError(ErrSyntaxError)
+			}
+			if i+1 >= len(args) {
+				return h.WriteError(ErrSyntaxError)
+			}
+			cond.kind = SET_IFDEQ
+			cond.cmp_value = copyBytes(args[i+1])
+			i = i + 2
+		} else if option == "ifdne" {
+			if cond.kind != SET_ALWAYS {
+				return h.WriteError(ErrSyntaxError)
+			}
+			if i+1 >= len(args) {
+				return h.WriteError(ErrSyntaxError)
+			}
+			cond.kind = SET_IFDNE
 			cond.cmp_value = copyBytes(args[i+1])
 			i = i + 2
 		} else if option == "get" {
