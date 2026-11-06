@@ -28,7 +28,15 @@ func (s *String) TypeName() string {
 
 type HashField struct {
 	Value []byte
-	Ttl   *time.Duration
+	Ttl   *time.Time
+}
+
+func NewHashField(value []byte) *HashField {
+	return &HashField{Value: value, Ttl: nil}
+}
+
+func NewHashFieldWithTTL(value []byte, ttl *time.Time) *HashField {
+	return &HashField{Value: value, Ttl: ttl}
 }
 
 type Hash struct {

@@ -78,22 +78,13 @@ func (h *ClientHandler) Dispatch(store *store.Store, args [][]byte) error {
 	db := store.DB[h.currentDB]
 
 	switch cmd {
-	case "ping":
-		return h.cmdPing(args)
-	case "echo":
-		return h.cmdEcho(args)
+	// string commands
 	case "set":
 		return h.cmdSet(db, args)
 	case "get":
 		return h.cmdGet(db, args)
 	case "del":
 		return h.cmdDel(db, args)
-	case "exists":
-		return h.cmdExists(db, args)
-	case "expire":
-		return h.cmdExpire(db, args)
-	case "ttl":
-		return h.cmdTtl(db, args)
 	case "incr":
 		return h.cmdIncr(db, args)
 	case "decr":
@@ -118,6 +109,24 @@ func (h *ClientHandler) Dispatch(store *store.Store, args [][]byte) error {
 		return h.cmdAppend(db, args)
 	case "digest":
 		return h.cmdDigest(db, args)
+
+	// hash commands
+	case "hset":
+		return h.cmdHSet(db, args)
+	case "hget":
+		return h.cmdHGet(db, args)
+
+	// general commands
+	case "ping":
+		return h.cmdPing(args)
+	case "echo":
+		return h.cmdEcho(args)
+	case "exists":
+		return h.cmdExists(db, args)
+	case "ttl":
+		return h.cmdTtl(db, args)
+	case "expire":
+		return h.cmdExpire(db, args)
 	case "type":
 		return h.cmdType(db, args)
 	case "dbsize":
