@@ -612,6 +612,71 @@ func (h *ClientHandler) cmdGetDel(db *store.Database[string], args [][]byte) err
 	return h.WriteBytes(value)
 }
 
+// DELEX key [IFEQ v | IFNE v | IFDEQ d | IFDNE d] -> 1 if deleted, else 0.
+func (h *ClientHandler) cmdDelEx(db *store.Database[string], args [][]byte) error {
+	if len(args) == 0 {
+		return h.WriteError(wrongArgsNum("delex"))
+	}
+
+	key := bstring(args[0])
+	condition := &SetCondition{kind: SET_ALWAYS}
+
+	if len(args) == 1 {
+		condition.kind = SET_ALWAYS
+	} else if len(args) == 3 {
+		option := bstring(bytesToLower(args[1]))
+		operand := args[2]
+
+		if option != "ifeq" && option != "ifne" && option != "ifdeq" && option != "ifdne" {
+			return h.WriteError(ErrSyntaxError)
+		}
+
+		switch option {
+		case "ifeq":
+			condition.kind = SET_IFEQ
+			break
+		case "ifne":
+			condition.kind = SET_IFNE
+			break
+		case "ifdeq":
+			condition.kind = SET_IFDEQ
+			break
+		case "ifdne":
+			condition.kind = SET_IFDNE
+			break
+		default:
+			return h.WriteError(ErrSyntaxError)
+		}
+		condition.cmp_value = operand
+	} else {
+		return h.WriteError(ErrSyntaxError)
+	}
+
+	now := time.Now()
+	entry, ok := db.Get(key)
+	if !ok {
+		return h.WriteInt64(0)
+	}
+
+	if entry.IsExpired(now) {
+		db.Remove(key) // lazily evict
+		return h.WriteInt64(0)
+	}
+
+	strEntry, tok := entry.AsStr()
+	if !tok {
+		return h.WriteWrongTypeError()
+	}
+
+	allowed := condition.cond_allows(strEntry.Value)
+	if !allowed {
+		return h.WriteInt64(0)
+	}
+
+	db.Remove(key)
+	return h.WriteInt64(1)
+}
+
 func (h *ClientHandler) cmdStrLen(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
 		return h.WriteError(wrongArgsNum("strlen"))
