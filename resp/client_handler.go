@@ -110,6 +110,8 @@ func (h *ClientHandler) Dispatch(store *store.Store, args [][]byte) error {
 		return h.cmdGetDel(db, args)
 	case "strlen":
 		return h.cmdStrLen(db, args)
+	case "digest":
+		return h.cmdDigest(db, args)
 	case "type":
 		return h.cmdType(db, args)
 	case "dbsize":

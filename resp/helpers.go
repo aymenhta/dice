@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"aymenhta.com/dice/resp/static"
+	"github.com/zeebo/xxh3"
 )
 
 // SanitizeSimpleString replaces all '\r' and '\n' characters with spaces.
@@ -280,4 +281,9 @@ func Add64(a, b int64) (int64, bool) {
 
 func Int64ToBytes(val int64) []byte {
 	return strconv.AppendInt(nil, val, 10)
+}
+
+func BytesToXXH3hex(b []byte) string {
+	hashBytes := xxh3.Hash(b)
+	return fmt.Sprintf("%016x", hashBytes)
 }

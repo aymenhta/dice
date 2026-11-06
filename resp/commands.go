@@ -586,7 +586,7 @@ func (h *ClientHandler) cmdGetDel(db *store.Database[string], args [][]byte) err
 
 func (h *ClientHandler) cmdStrLen(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
-		return h.WriteError(wrongArgsNum("type"))
+		return h.WriteError(wrongArgsNum("strlen"))
 	}
 
 	key := bstring(args[0])
@@ -601,6 +601,26 @@ func (h *ClientHandler) cmdStrLen(db *store.Database[string], args [][]byte) err
 	}
 
 	return h.WriteInt(len(strEntry.Value))
+}
+
+func (h *ClientHandler) cmdDigest(db *store.Database[string], args [][]byte) error {
+	if len(args) != 1 {
+		return h.WriteError(wrongArgsNum("digest"))
+	}
+
+	key := bstring(args[0])
+	entry, ok := lives(db, key)
+	if !ok {
+		return h.WriteNullString()
+	}
+
+	strEntry, tok := entry.AsStr()
+	if !tok {
+		return h.WriteWrongTypeError()
+	}
+
+	digest := BytesToXXH3hex(strEntry.Value)
+	return h.WriteString(digest)
 }
 
 func (h *ClientHandler) cmdType(db *store.Database[string], args [][]byte) error {
