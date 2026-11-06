@@ -2,6 +2,7 @@ package resp
 
 import (
 	"bytes"
+	"slices"
 	"time"
 
 	"aymenhta.com/dice/store"
@@ -266,18 +267,13 @@ func (h *ClientHandler) cmdSet(db *store.Database[string, *store.Entry], args []
 		allowed := cond.cond_allows(nil)
 		if allowed {
 			expires_at := ttl.expires_at()
-			db.Set(key, &store.Entry{
-				Value: &store.String{Value: value},
-				Ttl:   expires_at,
-			})
+			db.Set(key, store.NewStringEntry(value, expires_at))
 			didSet = true
 		}
 	} else {
 		exists := !entry.IsExpired(now)
-		if entry.Value.Kind() != store.STRING_KIND {
-			return h.WriteWrongTypeError()
-		}
-		typedEntry, tok := entry.Value.(*store.String)
+
+		typedEntry, tok := store.EntryValue[*store.String](entry, store.STRING_KIND)
 		if !tok {
 			return h.WriteWrongTypeError()
 		}
@@ -303,10 +299,7 @@ func (h *ClientHandler) cmdSet(db *store.Database[string, *store.Entry], args []
 			} else if ttl.action == SET_TTL_AT {
 				expiresAt = ttl.new_ttl
 			}
-			db.Set(key, &store.Entry{
-				Value: &store.String{Value: value},
-				Ttl:   expiresAt,
-			})
+			db.Set(key, store.NewStringEntry(value, expiresAt))
 			didSet = true
 		}
 	}
@@ -333,12 +326,11 @@ func (h *ClientHandler) cmdGet(db *store.Database[string, *store.Entry], args []
 		return h.WriteNullString()
 	}
 
-	if entry.Value.Kind() == store.STRING_KIND {
-		if typedEntry, ok := entry.Value.(*store.String); ok {
-			return h.WriteBytes(typedEntry.Value)
-		}
+	typedEntry, tok := store.EntryValue[*store.String](entry, store.STRING_KIND)
+	if !tok {
+		return h.WriteWrongTypeError()
 	}
-	return h.WriteWrongTypeError()
+	return h.WriteBytes(typedEntry.Value)
 }
 
 func (h *ClientHandler) cmdDel(db *store.Database[string, *store.Entry], args [][]byte) error {
@@ -455,19 +447,13 @@ func (h *ClientHandler) incr_decrByDelta(db *store.Database[string, *store.Entry
 	key := bstring(copyBytes(args[0]))
 	entry, ok := db.Get(key)
 	if !ok {
-		db.Set(key, &store.Entry{
-			Value: &store.String{Value: Int64ToBytes(delta)},
-			Ttl:   nil,
-		})
+		db.Set(key, store.NewStringEntry(Int64ToBytes(delta), nil))
 		return h.WriteInt64(delta)
 	}
 
 	if entry.IsExpired(time.Now()) {
 		// Logically absent: start from zero, no TTL.
-		db.Set(key, &store.Entry{
-			Value: &store.String{Value: Int64ToBytes(delta)},
-			Ttl:   nil,
-		})
+		db.Set(key, store.NewStringEntry(Int64ToBytes(delta), nil))
 		return h.WriteInt64(delta)
 	}
 
@@ -557,6 +543,26 @@ func (h *ClientHandler) cmdMGet(db *store.Database[string, *store.Entry], args [
 	}
 
 	return h.werr
+}
+
+// Each pair is written atomically, but the batch as a whole is NOT atomic:
+// another connection can observe some keys set and others not yet.
+// Like SET, MSET discards any existing TTL.
+func (h *ClientHandler) cmdMSet(db *store.Database[string, *store.Entry], args [][]byte) error {
+	if len(args) != 0 && len(args)%2 != 0 {
+		return h.WriteError(wrongArgsNum("mset"))
+	}
+
+	pairs := make(map[string]*store.Entry)
+
+	for pair := range slices.Chunk(args, 2) {
+		key := bstring(copyBytes(pair[0]))
+		value := copyBytes(pair[1])
+		pairs[key] = store.NewStringEntry(value, nil)
+	}
+
+	db.MSet(pairs)
+	return h.WriteSimpleString("OK")
 }
 
 func (h *ClientHandler) cmdQuit() error {

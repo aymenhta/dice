@@ -53,6 +53,7 @@ func handleClient(conn net.Conn, store *store.Store) {
 		}
 
 		if handler.Dispatch(store, args); err != nil {
+			handler.CloseWithError(err)
 			log.Printf("closed connection from %s during write: %v\n", conn.RemoteAddr(), err)
 			return
 		}

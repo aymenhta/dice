@@ -11,6 +11,13 @@ type Entry struct {
 	Ttl   *time.Time
 }
 
+func NewStringEntry(value []byte, ttl *time.Time) *Entry {
+	return &Entry{
+		Value: &String{Value: value},
+		Ttl:   ttl,
+	}
+}
+
 func (e *Entry) IsExpired(now time.Time) bool {
 	if e.Ttl == nil {
 		return false

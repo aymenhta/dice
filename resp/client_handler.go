@@ -104,6 +104,8 @@ func (h *ClientHandler) Dispatch(store *store.Store, args [][]byte) error {
 		return h.cmdDecrBy(db, args)
 	case "mget":
 		return h.cmdMGet(db, args)
+	case "mset":
+		return h.cmdMSet(db, args)
 	case "command":
 		return h.cmdCommand()
 	case "quit":

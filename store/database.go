@@ -37,7 +37,6 @@ func (db *Database[K, V]) Remove(key K) {
 
 func (db *Database[K, V]) BatchRemove(keys []K) int64 {
 	removed := int64(0)
-	fmt.Printf("this is the current database before: %+v\n", db.body)
 	db.Lock()
 	for _, key := range keys {
 		_, ok := db.body[key]
@@ -47,8 +46,16 @@ func (db *Database[K, V]) BatchRemove(keys []K) int64 {
 		}
 	}
 	db.Unlock()
-	db.debugMap()
+	// db.debugMap()
 	return removed
+}
+
+func (db *Database[K, V]) MSet(pairs map[K]V) {
+	db.Lock()
+	for k, v := range pairs {
+		db.body[k] = v
+	}
+	db.Unlock()
 }
 
 func (db *Database[K, V]) debugMap() {
