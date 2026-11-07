@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"aymenhta.com/dice/internal/utils"
 )
 
 func randomString(l int) string {
@@ -58,7 +60,7 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-func GetTestingClientConnParser(b []byte) *ClientHandler {
+func GetTestingClientConnParser(b []byte) *RespReadWriter {
 	bytesReader := bytes.NewReader(b)
 	bufioReader := bufio.NewReader(bytesReader)
 	bufioWriter := bufio.NewWriter(io.Discard)
@@ -68,7 +70,7 @@ func GetTestingClientConnParser(b []byte) *ClientHandler {
 		w: bufioWriter,
 	}
 
-	return NewClientHandler(conn)
+	return NewRespReadWriter(conn)
 }
 
 var parserTestCases = map[string][][]string{
@@ -118,7 +120,7 @@ var parserTestCases = map[string][][]string{
 func TestClientHandlerParser(t *testing.T) {
 	bytesRd := bytes.NewReader(nil)
 	bufRd := bufio.NewReader(bytesRd)
-	handler := &ClientHandler{
+	handler := &RespReadWriter{
 		rd:                 bufRd,
 		maxMultiBulkLength: 16,
 		maxBulkLength:      1024,
@@ -160,7 +162,7 @@ func TestClientHandlerParser(t *testing.T) {
 func BenchmarkClientHandlerParser(b *testing.B) {
 	bytesRd := bytes.NewReader(nil)
 	bufRd := bufio.NewReader(bytesRd)
-	handler := &ClientHandler{
+	handler := &RespReadWriter{
 		rd:                 bufRd,
 		maxMultiBulkLength: 16,
 		maxBulkLength:      1024,
@@ -191,10 +193,10 @@ func TestClientHandlerLimits(t *testing.T) {
 	t.Run("Baseline_MultiBulk", func(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("*1\r\n$3\r\nfoo\r\n"))
 		defer handler.Close()
-		handler.SetOptions(ClientHandlerOpts{
-			MaxMultiBulkLength: Pointer(1),
-			MaxBulkLength:      Pointer(3),
-			MaxBufferSize:      Pointer(5),
+		handler.SetOptions(RespReadWriterOpts{
+			MaxMultiBulkLength: utils.Pointer(1),
+			MaxBulkLength:      utils.Pointer(3),
+			MaxBufferSize:      utils.Pointer(5),
 		})
 		args, err := handler.Next()
 		if err != nil {
@@ -207,10 +209,10 @@ func TestClientHandlerLimits(t *testing.T) {
 	t.Run("Baseline_Simple", func(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("foo\r\n"))
 		defer handler.Close()
-		handler.SetOptions(ClientHandlerOpts{
-			MaxMultiBulkLength: Pointer(1),
-			MaxBulkLength:      Pointer(3),
-			MaxBufferSize:      Pointer(5),
+		handler.SetOptions(RespReadWriterOpts{
+			MaxMultiBulkLength: utils.Pointer(1),
+			MaxBulkLength:      utils.Pointer(3),
+			MaxBufferSize:      utils.Pointer(5),
 		})
 		args, err := handler.Next()
 		if err != nil {
@@ -223,8 +225,8 @@ func TestClientHandlerLimits(t *testing.T) {
 	t.Run("MaxMultiBulkLength", func(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("*5\r\n$0\r\n\r\n$0\r\n\r\n$0\r\n\r\n$0\r\n\r\n$0\r\n\r\n"))
 		defer handler.Close()
-		handler.SetOptions(ClientHandlerOpts{
-			MaxMultiBulkLength: Pointer(4),
+		handler.SetOptions(RespReadWriterOpts{
+			MaxMultiBulkLength: utils.Pointer(4),
 		})
 		args, err := handler.Next()
 		if err == nil {
@@ -237,8 +239,8 @@ func TestClientHandlerLimits(t *testing.T) {
 	t.Run("MaxBulkLength", func(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("*1\r\n$1025\r\n" + strings.Repeat("a", 1025) + "\r\n"))
 		defer handler.Close()
-		handler.SetOptions(ClientHandlerOpts{
-			MaxBulkLength: Pointer(1024),
+		handler.SetOptions(RespReadWriterOpts{
+			MaxBulkLength: utils.Pointer(1024),
 		})
 		args, err := handler.Next()
 		if err == nil {
@@ -251,8 +253,8 @@ func TestClientHandlerLimits(t *testing.T) {
 	t.Run("MaxBufferSize_MultiBulk", func(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("*1\r\n$3\r\nfoo\r\n"))
 		defer handler.Close()
-		handler.SetOptions(ClientHandlerOpts{
-			MaxBufferSize: Pointer(4),
+		handler.SetOptions(RespReadWriterOpts{
+			MaxBufferSize: utils.Pointer(4),
 		})
 		args, err := handler.Next()
 		if err == nil {
@@ -265,8 +267,8 @@ func TestClientHandlerLimits(t *testing.T) {
 	t.Run("MaxBufferSize_SimpleString", func(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("foo\r\n"))
 		defer handler.Close()
-		handler.SetOptions(ClientHandlerOpts{
-			MaxBufferSize: Pointer(2),
+		handler.SetOptions(RespReadWriterOpts{
+			MaxBufferSize: utils.Pointer(2),
 		})
 		args, err := handler.Next()
 		if err == nil {
@@ -285,7 +287,7 @@ func FuzzClientHandlerParser(f *testing.F) {
 
 	bytesRd := bytes.NewReader(nil)
 	bufRd := bufio.NewReader(bytesRd)
-	handler := &ClientHandler{
+	handler := &RespReadWriter{
 		rd:                 bufRd,
 		maxMultiBulkLength: 64,
 		maxBulkLength:      65536,

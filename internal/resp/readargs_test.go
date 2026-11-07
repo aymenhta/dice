@@ -135,7 +135,7 @@ err:
 func TestSplitArgs(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	bufRd := bufio.NewReader(buf)
-	server := &ClientHandler{
+	server := &RespReadWriter{
 		rd:                 bufRd,
 		maxMultiBulkLength: math.MaxInt64,
 		maxBulkLength:      1024,
@@ -184,7 +184,7 @@ func FuzzSplitArgs(f *testing.F) {
 
 	buf := bytes.NewBuffer(nil)
 	bufRd := bufio.NewReader(buf)
-	server := &ClientHandler{
+	server := &RespReadWriter{
 		rd:                 bufRd,
 		maxMultiBulkLength: math.MaxInt64,
 		maxBulkLength:      1024,

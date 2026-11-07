@@ -4,8 +4,10 @@ import (
 	"log"
 	"net"
 
-	"aymenhta.com/dice/resp"
-	"aymenhta.com/dice/store"
+	"aymenhta.com/dice/internal/client_handler"
+	"aymenhta.com/dice/internal/resp"
+	"aymenhta.com/dice/internal/store"
+	"aymenhta.com/dice/internal/utils"
 )
 
 func main() {
@@ -31,15 +33,15 @@ func main() {
 func handleClient(conn net.Conn, store *store.Store) {
 	defer conn.Close()
 
-	handler := resp.NewClientHandler(conn)
+	handler := client_handler.New(conn)
 	defer handler.Close()
 
 	log.Printf("new client has arrived %+v\n", conn.RemoteAddr())
 
-	if err := handler.SetOptions(resp.ClientHandlerOpts{
-		MaxMultiBulkLength: resp.Pointer(512 * 1024 * 1024),
-		MaxBulkLength:      resp.Pointer(65 * 1024 * 1024),
-		MaxBufferSize:      resp.Pointer(4096),
+	if err := handler.SetOptions(resp.RespReadWriterOpts{
+		MaxMultiBulkLength: utils.Pointer(512 * 1024 * 1024),
+		MaxBulkLength:      utils.Pointer(65 * 1024 * 1024),
+		MaxBufferSize:      utils.Pointer(4096),
 	}); err != nil {
 		handler.CloseWithError(err)
 	}

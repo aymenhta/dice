@@ -1,4 +1,4 @@
-package resp
+package utils
 
 import (
 	"errors"
@@ -49,7 +49,7 @@ func BenchmarkIntParsing(b *testing.B) {
 	})
 	b.Run("strconv.Atoi", func(b *testing.B) {
 		for _, tc := range testCases {
-			v := bstring(tc)
+			v := BStr(tc)
 			for i := 0; i < b.N; i++ {
 				strconv.Atoi(v)
 			}
@@ -57,7 +57,7 @@ func BenchmarkIntParsing(b *testing.B) {
 	})
 	b.Run("strconv.ParseInt(64)", func(b *testing.B) {
 		for _, tc := range testCases {
-			v := bstring(tc)
+			v := BStr(tc)
 			for i := 0; i < b.N; i++ {
 				strconv.ParseInt(v, 10, 64)
 			}
@@ -65,7 +65,7 @@ func BenchmarkIntParsing(b *testing.B) {
 	})
 	b.Run("strconv.ParseInt(32)", func(b *testing.B) {
 		for _, tc := range testCases {
-			v := bstring(tc)
+			v := BStr(tc)
 			for i := 0; i < b.N; i++ {
 				strconv.ParseInt(v, 10, 32)
 			}

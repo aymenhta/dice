@@ -1,4 +1,4 @@
-package resp
+package utils
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"time"
 	"unsafe"
 
-	"aymenhta.com/dice/resp/static"
+	"aymenhta.com/dice/internal/resp/static"
 	"github.com/zeebo/xxh3"
 )
 
@@ -22,21 +22,21 @@ func SanitizeSimpleString(buf []byte) []byte {
 	return buf
 }
 
-// bstring converts a byte slice to a string without copying.
-func bstring(bs []byte) string {
+// BStr converts a byte slice to a string without copying.
+func BStr(bs []byte) string {
 	p := unsafe.SliceData(bs)
 	return unsafe.String(p, len(bs))
 }
 
-// sbytes converts a string to a byte slice without copying.
-func sbytes(s string) []byte {
+// StrB converts a string to a byte slice without copying.
+func StrB(s string) []byte {
 	if s == "" {
 		return static.NullBytes
 	}
 	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
 
-func bytesToLower(b []byte) []byte {
+func BytesToLower(b []byte) []byte {
 	for i := 0; i < len(b); i++ {
 		if b[i] >= 'A' && b[i] <= 'Z' {
 			b[i] = b[i] + 32
@@ -46,7 +46,7 @@ func bytesToLower(b []byte) []byte {
 	return b
 }
 
-func copyBytes(b []byte) []byte {
+func CopyBytes(b []byte) []byte {
 	out := make([]byte, len(b))
 	copy(out, b)
 	return out
@@ -244,11 +244,11 @@ func Pointer[T any](v T) *T {
 	return &v
 }
 
-func wrongArgsNum(cmd string) error {
+func WrongArgsNum(cmd string) error {
 	return fmt.Errorf("wrong number of arguments for '%s' command", cmd)
 }
 
-func invalidExpire(cmd string) error {
+func InvalidExpire(cmd string) error {
 	return fmt.Errorf("invalid expire time in '%s' command", cmd)
 }
 

@@ -8,16 +8,16 @@ import (
 	"math/big"
 	"strconv"
 
-	"aymenhta.com/dice/resp/doublebuffer"
-	"aymenhta.com/dice/resp/static"
-	"aymenhta.com/dice/resp/types"
-	"aymenhta.com/dice/store"
+	"aymenhta.com/dice/internal/resp/doublebuffer"
+	"aymenhta.com/dice/internal/resp/static"
+	"aymenhta.com/dice/internal/resp/types"
+	"aymenhta.com/dice/internal/utils"
 )
 
 const ReaderBufferSize = 65536
 const WriterBufferSize = 65536
 
-type ClientHandler struct {
+type RespReadWriter struct {
 	rd   *bufio.Reader
 	wr   *doublebuffer.DoubleBuffer
 	rerr error
@@ -35,13 +35,10 @@ type ClientHandler struct {
 	maxBulkLength      int
 	maxBufferSize      int
 
-	// store
-	currentDB int
-
 	resp2compat bool
 }
 
-type ClientHandlerOpts struct {
+type RespReadWriterOpts struct {
 	// MaxMultiBulkLength sets the maximum number of elements in a multi-bulk command request.
 	MaxMultiBulkLength *int
 
@@ -58,147 +55,87 @@ type ClientHandlerOpts struct {
 }
 
 // NewClientHandler returns a new wrapped incoming connection with sane default parameters set.
-func NewClientHandler(rw io.ReadWriter) *ClientHandler {
-	s := &ClientHandler{
+func NewRespReadWriter(rw io.ReadWriter) *RespReadWriter {
+	s := &RespReadWriter{
 		rd:                 bufio.NewReaderSize(rw, ReaderBufferSize),
 		wr:                 doublebuffer.NewWriterSize(rw, WriterBufferSize),
 		maxMultiBulkLength: MaxMultiBulkLength,
 		maxBulkLength:      MaxBulkLength,
 		maxBufferSize:      MaxMultiBulkLength * MaxBulkLength,
 		appendIntBuf:       make([]byte, 0, 20),
-		currentDB:          0,
 	}
 	return s
 }
 
-func (h *ClientHandler) Dispatch(store *store.Store, args [][]byte) error {
-	cmd := bstring(bytesToLower(args[0]))
-	args = args[1:]
-
-	db := store.DB[h.currentDB]
-
-	switch cmd {
-	// string commands
-	case "set":
-		return h.cmdSet(db, args)
-	case "get":
-		return h.cmdGet(db, args)
-	case "del":
-		return h.cmdDel(db, args)
-	case "incr":
-		return h.cmdIncr(db, args)
-	case "decr":
-		return h.cmdDecr(db, args)
-	case "incrby":
-		return h.cmdIncrBy(db, args)
-	case "decrby":
-		return h.cmdDecrBy(db, args)
-	case "mget":
-		return h.cmdMGet(db, args)
-	case "mset":
-		return h.cmdMSet(db, args)
-	case "getdel":
-		return h.cmdGetDel(db, args)
-	case "delex":
-		return h.cmdDelEx(db, args)
-	case "getex":
-		return h.cmdGetEx(db, args)
-	case "strlen":
-		return h.cmdStrLen(db, args)
-	case "append":
-		return h.cmdAppend(db, args)
-	case "digest":
-		return h.cmdDigest(db, args)
-
-	// hash commands
-	case "hset":
-		return h.cmdHSet(db, args)
-	case "hget":
-		return h.cmdHGet(db, args)
-
-	// general commands
-	case "ping":
-		return h.cmdPing(args)
-	case "echo":
-		return h.cmdEcho(args)
-	case "exists":
-		return h.cmdExists(db, args)
-	case "ttl":
-		return h.cmdTtl(db, args)
-	case "expire":
-		return h.cmdExpire(db, args)
-	case "type":
-		return h.cmdType(db, args)
-	case "dbsize":
-		return h.cmdDbSize(db)
-	case "flushdb":
-		return h.cmdFlushDb(db)
-	case "flushall":
-		return h.cmdFlushAll(store)
-	case "select":
-		return h.cmdSelect(db, args)
-	case "command":
-		return h.cmdCommand()
-	case "quit":
-		return h.cmdQuit()
-	default:
-		return h.WriteError(fmt.Errorf("unkown command '%s'", cmd))
-	}
-}
-
 // ResetReader starts reading commands from the newly passed reader. Mostly used for testing purposes.
-func (h *ClientHandler) ResetReader(r io.Reader) {
-	h.rd.Reset(r)
-	h.rerr = nil
+func (x *RespReadWriter) ResetReader(r io.Reader) {
+	x.rd.Reset(r)
+	x.rerr = nil
 }
 
 // Reset starts reading and writing commands from the newly passed reader and writer. Mostly used for testing purposes.
-func (h *ClientHandler) Reset(rw io.ReadWriter) {
-	h.rd.Reset(rw)
-	h.wr.Reset(rw)
-	h.rerr = nil
-	h.werr = nil
+func (x *RespReadWriter) Reset(rw io.ReadWriter) {
+	x.rd.Reset(rw)
+	x.wr.Reset(rw)
+	x.rerr = nil
+	x.werr = nil
 }
 
 // SetOptions sets the options for the incoming connection.
-func (h *ClientHandler) SetOptions(opts ClientHandlerOpts) error {
+func (x *RespReadWriter) SetOptions(opts RespReadWriterOpts) error {
 	if opts.MaxMultiBulkLength != nil {
-		h.maxMultiBulkLength = *opts.MaxMultiBulkLength
+		x.maxMultiBulkLength = *opts.MaxMultiBulkLength
 	}
 	if opts.MaxBulkLength != nil {
-		h.maxBulkLength = *opts.MaxBulkLength
+		x.maxBulkLength = *opts.MaxBulkLength
 	}
 	if opts.MaxBufferSize != nil {
-		h.maxBufferSize = *opts.MaxBufferSize
+		x.maxBufferSize = *opts.MaxBufferSize
 	}
 	if opts.RESP2Compat != nil {
-		h.resp2compat = *opts.RESP2Compat
+		x.resp2compat = *opts.RESP2Compat
 	}
 	return nil
+}
+
+func (x *RespReadWriter) MaxMultiBulkLength() int {
+	return x.maxMultiBulkLength
+}
+
+func (x *RespReadWriter) MaxBulkLength() int {
+	return x.maxBulkLength
+}
+
+func (x *RespReadWriter) MaxBufferSize() int {
+	return x.maxBufferSize
+}
+
+func (x *RespReadWriter) RESP2Compat() bool {
+	return x.resp2compat
 }
 
 // SetRESP2Compat sets the RESP2 compatibility mode of the incoming connection.
 // This mode is useful when talking with a RESP2 client that does not support the new RESP3 types.
 // In this mode, Write functions will convert RESP3 types to RESP2 types where possible.
-func (h *ClientHandler) SetRESP2Compat(v bool) {
-	h.resp2compat = v
+func (x *RespReadWriter) SetRESP2Compat(v bool) {
+	x.resp2compat = v
 }
 
-func (h *ClientHandler) Werr() error {
-	return h.werr
+func (x *RespReadWriter) Werr() error {
+	return x.werr
 
 }
 
 // Next reads the next command from the incoming connection and returns it as a slice of byte slices.
 // The returned slice is only valid until the next call to Next as it is reused for each command.
 // If in doubt, copy the slice and every byte slice it contains to a newly allocated slice and byte slices.
-func (h *ClientHandler) Next() ([][]byte, error) {
-	if err := h.rerr; err != nil {
+func (x *RespReadWriter) Next() ([][]byte, error) {
+	if err := x.rerr; err != nil {
 		return nil, err
 	}
 	for {
-		if args, err := h.next(); err != nil {
-			h.rerr = err
+		if args, err := x.next(); err != nil {
+			x.rerr = err
 			return args, err
 		} else if len(args) > 0 {
 			return args, err
@@ -206,13 +143,13 @@ func (h *ClientHandler) Next() ([][]byte, error) {
 	}
 }
 
-func (h *ClientHandler) collectFragmentsSize(delim byte, maxLen int) (full []byte, err error) {
+func (x *RespReadWriter) collectFragmentsSize(delim byte, maxLen int) (full []byte, err error) {
 	var frag []byte
 	fullLen := 0
 	fragLen := 0
 	for {
 		var e error
-		frag, e = h.rd.ReadSlice(delim)
+		frag, e = x.rd.ReadSlice(delim)
 		fragLen = len(frag)
 
 		// if the full + fragment buffer has grown too large, return an error
@@ -246,8 +183,8 @@ func (h *ClientHandler) collectFragmentsSize(delim byte, maxLen int) (full []byt
 	return full, err
 }
 
-func (h *ClientHandler) readLine() ([]byte, error) {
-	b, err := h.collectFragmentsSize('\n', h.maxBufferSize)
+func (x *RespReadWriter) readLine() ([]byte, error) {
+	b, err := x.collectFragmentsSize('\n', x.maxBufferSize)
 	if err != nil {
 		return b, err
 	}
@@ -258,8 +195,8 @@ func (h *ClientHandler) readLine() ([]byte, error) {
 	return b[:l-1], nil
 }
 
-func (h *ClientHandler) readShortLine() ([]byte, error) {
-	b, err := h.collectFragmentsSize('\n', h.rd.Size())
+func (x *RespReadWriter) readShortLine() ([]byte, error) {
+	b, err := x.collectFragmentsSize('\n', x.rd.Size())
 	if err != nil {
 		return b, err
 	}
@@ -283,14 +220,14 @@ func hexDigitToInt(c byte) int {
 
 var readArgsSpaceChars = [256]uint8{' ': 1, '\r': 1, '\n': 2, '\v': 3, '\f': 3, '\t': 1, '\x00': 1}
 
-func (h *ClientHandler) readArgs() ([][]byte, error) {
-	argsRefs := h.argsRefs
-	argsBounds := h.argsBounds[:0]
-	argsBuffer := h.argsBuffer[:0]
+func (x *RespReadWriter) readArgs() ([][]byte, error) {
+	argsRefs := x.argsRefs
+	argsBounds := x.argsBounds[:0]
+	argsBuffer := x.argsBuffer[:0]
 	defer func() {
-		h.argsRefs = argsRefs
-		h.argsBounds = argsBounds
-		h.argsBuffer = argsBuffer
+		x.argsRefs = argsRefs
+		x.argsBounds = argsBounds
+		x.argsBuffer = argsBuffer
 	}()
 	argc := 0
 	barrier := 0
@@ -300,7 +237,7 @@ func (h *ClientHandler) readArgs() ([][]byte, error) {
 
 	for {
 		for {
-			c, err := h.rd.ReadByte()
+			c, err := x.rd.ReadByte()
 			if err != nil {
 				return nil, err
 			}
@@ -311,19 +248,19 @@ func (h *ClientHandler) readArgs() ([][]byte, error) {
 				if insq || indq {
 					return nil, ErrProtoUnbalancedQuotes
 				}
-				argsRefs = Expand(argsRefs, argc)
+				argsRefs = utils.Expand(argsRefs, argc)
 				for i := 0; i < argc; i++ {
 					argsRefs[i] = argsBuffer[argsBounds[i*2] : argsBounds[i*2]+argsBounds[i*2+1]]
 				}
 				return argsRefs[:argc], nil
 			}
-			h.rd.UnreadByte()
+			x.rd.UnreadByte()
 			break
 		}
 
 	inner:
 		for {
-			c, err := h.rd.ReadByte()
+			c, err := x.rd.ReadByte()
 			if err != nil {
 				break // we handle read errors at the start of the outer loop
 			}
@@ -333,7 +270,7 @@ func (h *ClientHandler) readArgs() ([][]byte, error) {
 					return nil, ErrProtoUnbalancedQuotes
 				}
 				if c == '\\' {
-					peek, err := h.rd.Peek(3)
+					peek, err := x.rd.Peek(3)
 					if err != nil && !errors.Is(err, io.EOF) {
 						return nil, err
 					}
@@ -342,11 +279,11 @@ func (h *ClientHandler) readArgs() ([][]byte, error) {
 						i1 := hexDigitToInt(peek[2])
 						if i0 >= 0 && i1 >= 0 {
 							c = byte(i0<<4 | i1)
-							if len(argsBuffer)+1 > h.maxBufferSize {
+							if len(argsBuffer)+1 > x.maxBufferSize {
 								return nil, bufio.ErrBufferFull
 							}
 							argsBuffer = append(argsBuffer, c)
-							h.rd.Discard(3)
+							x.rd.Discard(3)
 							continue
 						}
 					}
@@ -365,16 +302,16 @@ func (h *ClientHandler) readArgs() ([][]byte, error) {
 						default:
 							c = peek[0]
 						}
-						if len(argsBuffer)+1 > h.maxBufferSize {
+						if len(argsBuffer)+1 > x.maxBufferSize {
 							return nil, bufio.ErrBufferFull
 						}
 						argsBuffer = append(argsBuffer, c)
-						h.rd.Discard(1)
+						x.rd.Discard(1)
 						continue
 					}
 				}
 				if c == '"' {
-					peek, err := h.rd.Peek(1)
+					peek, err := x.rd.Peek(1)
 					if err != nil && !errors.Is(err, io.EOF) {
 						return nil, err
 					}
@@ -384,7 +321,7 @@ func (h *ClientHandler) readArgs() ([][]byte, error) {
 					indq = false
 					break
 				}
-				if len(argsBuffer)+1 > h.maxBufferSize {
+				if len(argsBuffer)+1 > x.maxBufferSize {
 					return nil, bufio.ErrBufferFull
 				}
 				argsBuffer = append(argsBuffer, c)
@@ -395,22 +332,22 @@ func (h *ClientHandler) readArgs() ([][]byte, error) {
 					return nil, ErrProtoUnbalancedQuotes
 				}
 				if c == '\\' {
-					peek, err := h.rd.Peek(1)
+					peek, err := x.rd.Peek(1)
 					if err != nil && !errors.Is(err, io.EOF) {
 						return nil, err
 					}
 					if len(peek) >= 1 && peek[0] == '\'' {
 						c = '\''
-						if len(argsBuffer)+1 > h.maxBufferSize {
+						if len(argsBuffer)+1 > x.maxBufferSize {
 							return nil, bufio.ErrBufferFull
 						}
 						argsBuffer = append(argsBuffer, c)
-						h.rd.Discard(1)
+						x.rd.Discard(1)
 						continue
 					}
 				}
 				if c == '\'' {
-					peek, err := h.rd.Peek(1)
+					peek, err := x.rd.Peek(1)
 					if err != nil && !errors.Is(err, io.EOF) {
 						return nil, err
 					}
@@ -420,7 +357,7 @@ func (h *ClientHandler) readArgs() ([][]byte, error) {
 					insq = false
 					break
 				}
-				if len(argsBuffer)+1 > h.maxBufferSize {
+				if len(argsBuffer)+1 > x.maxBufferSize {
 					return nil, bufio.ErrBufferFull
 				}
 				argsBuffer = append(argsBuffer, c)
@@ -434,21 +371,21 @@ func (h *ClientHandler) readArgs() ([][]byte, error) {
 			default:
 				switch readArgsSpaceChars[c] {
 				case 1, 2:
-					h.rd.UnreadByte()
+					x.rd.UnreadByte()
 					break inner
 				}
-				if len(argsBuffer)+1 > h.maxBufferSize {
+				if len(argsBuffer)+1 > x.maxBufferSize {
 					return nil, bufio.ErrBufferFull
 				}
 				argsBuffer = append(argsBuffer, c)
 			}
 		}
 		size := len(argsBuffer) - barrier
-		if size > h.maxBulkLength {
+		if size > x.maxBulkLength {
 			return nil, ErrProtoInvalidBulkLength
 		}
 		argc++
-		if argc > h.maxMultiBulkLength {
+		if argc > x.maxMultiBulkLength {
 			return nil, ErrProtoInvalidMultiBulkLength
 		}
 		argsBounds = append(argsBounds, barrier, size)
@@ -456,8 +393,8 @@ func (h *ClientHandler) readArgs() ([][]byte, error) {
 	}
 }
 
-func (h *ClientHandler) next() ([][]byte, error) {
-	t, err := h.rd.Peek(1)
+func (x *RespReadWriter) next() ([][]byte, error) {
+	t, err := x.rd.Peek(1)
 	if err != nil {
 		return nil, err
 	}
@@ -467,18 +404,18 @@ func (h *ClientHandler) next() ([][]byte, error) {
 	switch t[0] {
 	case types.RespArray:
 	default:
-		return h.readArgs()
+		return x.readArgs()
 	}
-	line, err := h.readShortLine()
+	line, err := x.readShortLine()
 	if err != nil {
 		return nil, err
 	}
 	if len(line) <= 1 {
 		return nil, nil
 	}
-	n32, err := ParseInt32(line[1:])
+	n32, err := utils.ParseInt32(line[1:])
 	n := int(n32)
-	if err != nil || n > h.maxMultiBulkLength {
+	if err != nil || n > x.maxMultiBulkLength {
 		return nil, ErrProtoInvalidMultiBulkLength
 	}
 	if n <= 0 {
@@ -488,37 +425,37 @@ func (h *ClientHandler) next() ([][]byte, error) {
 	// fmt.Println("=====================================")
 	// fmt.Println("array size is:", n)
 
-	argsRefs := Expand(h.argsRefs, n)
-	argsBounds := Expand(h.argsBounds, int(n)*2)
-	argsBuffer := h.argsBuffer
+	argsRefs := utils.Expand(x.argsRefs, n)
+	argsBounds := utils.Expand(x.argsBounds, int(n)*2)
+	argsBuffer := x.argsBuffer
 	defer func() {
-		h.argsRefs = argsRefs
-		h.argsBounds = argsBounds
-		h.argsBuffer = argsBuffer
+		x.argsRefs = argsRefs
+		x.argsBounds = argsBounds
+		x.argsBuffer = argsBuffer
 	}()
 
 	p := 0
 	for i := 0; i < n; i++ {
-		line, err := h.readShortLine()
+		line, err := x.readShortLine()
 		if err != nil {
 			return nil, err
 		}
 		if len(line) == 0 || line[0] != types.RespBulkStr {
 			return nil, ErrProtoExpectedString
 		}
-		l32, err := ParseUInt32(line[1:])
+		l32, err := utils.ParseUInt32(line[1:])
 		l := int(l32)
-		if err != nil || l < 0 || l > h.maxBulkLength {
+		if err != nil || l < 0 || l > x.maxBulkLength {
 			return nil, ErrProtoInvalidBulkLength
 		}
-		if p+l+2 > h.maxBufferSize {
+		if p+l+2 > x.maxBufferSize {
 			return nil, bufio.ErrBufferFull
 		}
-		argsBuffer = Expand(argsBuffer, p+l+2)
+		argsBuffer = utils.Expand(argsBuffer, p+l+2)
 		readBufferChunk := argsBuffer[p : p+l+2]
 		argsBounds[i*2] = p
 		argsBounds[i*2+1] = l
-		if _, err := io.ReadFull(h.rd, readBufferChunk); err != nil {
+		if _, err := io.ReadFull(x.rd, readBufferChunk); err != nil {
 			return nil, err
 		}
 		// fmt.Printf("read data (%v) is: %v--\n", len(string(readBufferChunk)), string(readBufferChunk))
@@ -532,47 +469,47 @@ func (h *ClientHandler) next() ([][]byte, error) {
 }
 
 // Close gracefully closes the incoming connection after flushing any pending writes.
-func (h *ClientHandler) Close() error {
-	return h.wr.Close()
+func (x *RespReadWriter) Close() error {
+	return x.wr.Close()
 }
 
 // CloseWithError closes the incoming connection after writing an error response.
 // This is a convenience function that combines WriteError and Close.
-func (h *ClientHandler) CloseWithError(err error) error {
+func (x *RespReadWriter) CloseWithError(err error) error {
 	if err != nil {
-		h.WriteError(err)
+		x.WriteError(err)
 	}
-	return h.Close()
+	return x.Close()
 }
 
-func (h *ClientHandler) write(b []byte) error {
-	if h.werr != nil {
-		return h.werr
+func (x *RespReadWriter) write(b []byte) error {
+	if x.werr != nil {
+		return x.werr
 	}
 	if len(b) == 0 {
 		return nil
 	}
-	_, err := h.wr.Write(b)
+	_, err := x.wr.Write(b)
 	if err != nil {
-		h.werr = err
+		x.werr = err
 	}
 	return err
 }
 
 var crlfLen = len(types.CRLF)
 
-func (h *ClientHandler) writeWithType(typeByte byte, head []byte, body []byte) error {
+func (x *RespReadWriter) writeWithType(typeByte byte, head []byte, body []byte) error {
 	headLen := len(head)
 	bodyLen := len(body)
 	replySize := 1 + headLen + crlfLen
 	if body != nil {
 		replySize += bodyLen + crlfLen
 	}
-	replyBuf := Expand(h.writeBuf, replySize)
+	replyBuf := utils.Expand(x.writeBuf, replySize)
 	replyBuf[0] = typeByte
 	p := 1
 	if headLen > 0 {
-		copy(replyBuf[p:], SanitizeSimpleString(head))
+		copy(replyBuf[p:], utils.SanitizeSimpleString(head))
 		p += headLen
 	}
 	copy(replyBuf[p:], types.CRLF)
@@ -583,11 +520,11 @@ func (h *ClientHandler) writeWithType(typeByte byte, head []byte, body []byte) e
 		copy(replyBuf[p:], types.CRLF)
 		p += crlfLen
 	}
-	h.writeBuf = replyBuf
-	return h.write(replyBuf[:p])
+	x.writeBuf = replyBuf
+	return x.write(replyBuf[:p])
 }
 
-func (h *ClientHandler) writeWithPrefix(prefix []byte, head []byte, body []byte) error {
+func (x *RespReadWriter) writeWithPrefix(prefix []byte, head []byte, body []byte) error {
 	prefixLen := len(prefix)
 	headLen := len(head)
 	bodyLen := len(body)
@@ -595,11 +532,11 @@ func (h *ClientHandler) writeWithPrefix(prefix []byte, head []byte, body []byte)
 	if body != nil {
 		replySize += bodyLen + crlfLen
 	}
-	replyBuf := Expand(h.writeBuf, replySize)
+	replyBuf := utils.Expand(x.writeBuf, replySize)
 	copy(replyBuf, prefix)
 	p := prefixLen
 	if headLen > 0 {
-		copy(replyBuf[p:], SanitizeSimpleString(head))
+		copy(replyBuf[p:], utils.SanitizeSimpleString(head))
 		p += headLen
 	}
 	copy(replyBuf[p:], types.CRLF)
@@ -610,162 +547,162 @@ func (h *ClientHandler) writeWithPrefix(prefix []byte, head []byte, body []byte)
 		copy(replyBuf[p:], types.CRLF)
 		p += crlfLen
 	}
-	h.writeBuf = replyBuf
-	return h.write(replyBuf[:p])
+	x.writeBuf = replyBuf
+	return x.write(replyBuf[:p])
 }
 
 // WriteSimpleString writes a [Simple string](https://redis.io/docs/latest/develop/reference/protocol-spec/#simple-string-reply).
-func (h *ClientHandler) WriteStatusBytes(v []byte) error {
-	return h.writeWithType(types.RespSimpleStr, v, nil)
+func (x *RespReadWriter) WriteStatusBytes(v []byte) error {
+	return x.writeWithType(types.RespSimpleStr, v, nil)
 }
 
 // WriteSimpleString writes a [Simple string](https://redis.io/docs/latest/develop/reference/protocol-spec/#simple-string-reply).
-func (h *ClientHandler) WriteSimpleString(v string) error {
-	return h.WriteStatusBytes(sbytes(v))
+func (x *RespReadWriter) WriteSimpleString(v string) error {
+	return x.WriteStatusBytes(utils.StrB(v))
 }
 
 // WriteError writes a sanitized [Simple error](https://redis.io/docs/latest/develop/reference/protocol-spec/#error-reply).
-func (h *ClientHandler) WriteError(e error) error {
-	return h.writeWithPrefix(static.RespPrefixedErrorBytes, sbytes(e.Error()), nil)
+func (x *RespReadWriter) WriteError(e error) error {
+	return x.writeWithPrefix(static.RespPrefixedErrorBytes, utils.StrB(e.Error()), nil)
 }
 
-func (h *ClientHandler) WriteWrongTypeError() error {
-	return h.writeWithPrefix(
+func (x *RespReadWriter) WriteWrongTypeError() error {
+	return x.writeWithPrefix(
 		static.RespPrefixedWrongTypeErrBytes,
-		sbytes("Operation against a key holding the wrong kind of value"),
+		utils.StrB("Operation against a key holding the wrong kind of value"),
 		nil,
 	)
 }
 
 // WriteOK is a convenience method for calling WriteStatusBytes with "OK".
-func (h *ClientHandler) WriteOK() error {
-	return h.writeWithPrefix(static.RespPrefixedOKBytes, nil, nil)
+func (x *RespReadWriter) WriteOK() error {
+	return x.writeWithPrefix(static.RespPrefixedOKBytes, nil, nil)
 }
 
 // WriteBytes writes a [Bulk string](https://redis.io/docs/latest/develop/reference/protocol-spec/#bulk-string-reply).
-func (h *ClientHandler) WriteBytes(v []byte) error {
+func (x *RespReadWriter) WriteBytes(v []byte) error {
 	if v == nil {
 		v = static.NullBytes
 	}
-	return h.writeWithType(types.RespBulkStr, strconv.AppendInt(h.appendIntBuf[:0], int64(len(v)), 10), v)
+	return x.writeWithType(types.RespBulkStr, strconv.AppendInt(x.appendIntBuf[:0], int64(len(v)), 10), v)
 }
 
 // WriteString writes a [Bulk string](https://redis.io/docs/latest/develop/reference/protocol-spec/#bulk-string-reply).
-func (h *ClientHandler) WriteString(v string) error {
-	return h.WriteBytes(sbytes(v))
+func (x *RespReadWriter) WriteString(v string) error {
+	return x.WriteBytes(utils.StrB(v))
 }
 
 // WriteInt writes an [Integer](https://redis.io/docs/latest/develop/reference/protocol-spec/#integer-reply).
-func (h *ClientHandler) WriteInt(v int) error {
-	return h.WriteInt64(int64(v))
+func (x *RespReadWriter) WriteInt(v int) error {
+	return x.WriteInt64(int64(v))
 }
 
 // WriteInt64 writes an [Integer](https://redis.io/docs/latest/develop/reference/protocol-spec/#integer-reply).
-func (h *ClientHandler) WriteInt64(v int64) error {
-	return h.writeWithType(types.RespInt, strconv.AppendInt(h.appendIntBuf[:0], v, 10), nil)
+func (x *RespReadWriter) WriteInt64(v int64) error {
+	return x.writeWithType(types.RespInt, strconv.AppendInt(x.appendIntBuf[:0], v, 10), nil)
 }
 
 // WriteExplicitNullString writes a [Null Bulk string](https://redis.io/docs/latest/develop/reference/protocol-spec/#nil-reply).
-func (h *ClientHandler) WriteExplicitNullString() error {
-	return h.writeWithPrefix(static.RespPrefixedNullStringBytes, nil, nil)
+func (x *RespReadWriter) WriteExplicitNullString() error {
+	return x.writeWithPrefix(static.RespPrefixedNullStringBytes, nil, nil)
 }
 
 // WriteExplicitNullArray writes a [Null Array](https://redis.io/docs/latest/develop/reference/protocol-spec/#nil-array-reply).
-func (h *ClientHandler) WriteExplicitNullArray() error {
-	return h.writeWithPrefix(static.RespPrefixedNullArrayBytes, nil, nil)
+func (x *RespReadWriter) WriteExplicitNullArray() error {
+	return x.writeWithPrefix(static.RespPrefixedNullArrayBytes, nil, nil)
 }
 
 // WriteNullString writes a [Null](https://redis.io/docs/latest/develop/reference/protocol-spec/#null-reply) for RESP3 connections or a [Null Bulk string](https://redis.io/docs/latest/develop/reference/protocol-spec/#nil-reply) for RESP2 connections.
-func (h *ClientHandler) WriteNullString() error {
-	if h.resp2compat {
-		return h.WriteExplicitNullString()
+func (x *RespReadWriter) WriteNullString() error {
+	if x.resp2compat {
+		return x.WriteExplicitNullString()
 	}
-	return h.writeWithType(types.RespNil, nil, nil)
+	return x.writeWithType(types.RespNil, nil, nil)
 }
 
 // WriteNullArray writes a [Null](https://redis.io/docs/latest/develop/reference/protocol-spec/#null-reply) for RESP3 connections or a [Null Array](https://redis.io/docs/latest/develop/reference/protocol-spec/#nil-array-reply) for RESP2 connections.
-func (h *ClientHandler) WriteNullArray() error {
-	if h.resp2compat {
-		return h.WriteExplicitNullArray()
+func (x *RespReadWriter) WriteNullArray() error {
+	if x.resp2compat {
+		return x.WriteExplicitNullArray()
 	}
-	return h.writeWithType(types.RespNil, nil, nil)
+	return x.writeWithType(types.RespNil, nil, nil)
 }
 
 // WriteFloat writes a [Double](https://redis.io/docs/latest/develop/reference/protocol-spec/#double-reply) for RESP3 connections or a [Bulk string](https://redis.io/docs/latest/develop/reference/protocol-spec/#bulk-string-reply) containing the string representation of the float for RESP2 connections.
-func (h *ClientHandler) WriteFloat(v float64) error {
-	if h.resp2compat {
-		return h.WriteBytes(strconv.AppendFloat(nil, v, 'g', -1, 64))
+func (x *RespReadWriter) WriteFloat(v float64) error {
+	if x.resp2compat {
+		return x.WriteBytes(strconv.AppendFloat(nil, v, 'g', -1, 64))
 	}
-	return h.writeWithType(types.RespFloat, strconv.AppendFloat(nil, v, 'g', -1, 64), nil)
+	return x.writeWithType(types.RespFloat, strconv.AppendFloat(nil, v, 'g', -1, 64), nil)
 }
 
 // WriteBool writes a [Boolean](https://redis.io/docs/latest/develop/reference/protocol-spec/#boolean-reply) for RESP3 connections or an [Integer](https://redis.io/docs/latest/develop/reference/protocol-spec/#integer-reply) of `0` or `1` for RESP2 connections.
-func (h *ClientHandler) WriteBool(v bool) error {
-	if h.resp2compat {
+func (x *RespReadWriter) WriteBool(v bool) error {
+	if x.resp2compat {
 		if v {
-			return h.WriteInt(1)
+			return x.WriteInt(1)
 		} else {
-			return h.WriteInt(0)
+			return x.WriteInt(0)
 		}
 	}
 	if v {
-		return h.writeWithPrefix(static.RespPrefixedBoolTrueBytes, nil, nil)
+		return x.writeWithPrefix(static.RespPrefixedBoolTrueBytes, nil, nil)
 	}
-	return h.writeWithPrefix(static.RespPrefixedBoolFalseBytes, nil, nil)
+	return x.writeWithPrefix(static.RespPrefixedBoolFalseBytes, nil, nil)
 }
 
 // WriteBlobError writes a [Bulk error](https://redis.io/docs/latest/develop/reference/protocol-spec/#bulk-error-reply) for RESP3 connections or a sanitized [Simple error](https://redis.io/docs/latest/develop/reference/protocol-spec/#error-reply) for RESP2 connections.
-func (h *ClientHandler) WriteBlobError(e error) error {
-	if h.resp2compat {
-		return h.WriteError(e)
+func (x *RespReadWriter) WriteBlobError(e error) error {
+	if x.resp2compat {
+		return x.WriteError(e)
 	}
-	v := sbytes(e.Error())
-	return h.writeWithType(types.RespBlobError, strconv.AppendInt(h.appendIntBuf[:0], int64(len(v)), 10), v)
+	v := utils.StrB(e.Error())
+	return x.writeWithType(types.RespBlobError, strconv.AppendInt(x.appendIntBuf[:0], int64(len(v)), 10), v)
 }
 
 // WriteBlobString writes a [Verbatim string](https://redis.io/docs/latest/develop/reference/protocol-spec/#verbatim-string-reply) for RESP3 connections or a [Bulk string](https://redis.io/docs/latest/develop/reference/protocol-spec/#bulk-string-reply) for RESP2 connections.
 // The verbatim string needs to contain the data encoding part and the data itself. Example: `txt:Arbitrary text data`. The data encoding part is stripped when sending the data as Bulk string to RESP2 clients.
-func (h *ClientHandler) WriteVerbatimBytes(v []byte) error {
+func (x *RespReadWriter) WriteVerbatimBytes(v []byte) error {
 	vLen := len(v)
-	if h.resp2compat {
+	if x.resp2compat {
 		if vLen >= 4 {
-			return h.WriteBytes(v[4:])
+			return x.WriteBytes(v[4:])
 		}
-		return h.WriteBytes(v)
+		return x.WriteBytes(v)
 	}
 	if v == nil {
 		v = static.NullBytes
 	}
-	return h.writeWithType(types.RespVerbatim, strconv.AppendInt(h.appendIntBuf[:0], int64(vLen), 10), v)
+	return x.writeWithType(types.RespVerbatim, strconv.AppendInt(x.appendIntBuf[:0], int64(vLen), 10), v)
 }
 
 // WriteBlobString writes a [Verbatim string](https://redis.io/docs/latest/develop/reference/protocol-spec/#verbatim-string-reply) for RESP3 connections or a [Bulk string](https://redis.io/docs/latest/develop/reference/protocol-spec/#bulk-string-reply) for RESP2 connections.
 // The verbatim string needs to contain the data encoding part and the data itself. Example: `txt:Arbitrary text data`. The data encoding part is stripped when sending the data as Bulk string to RESP2 clients.
-func (h *ClientHandler) WriteVerbatimString(v string) error {
-	return h.WriteVerbatimBytes(sbytes(v))
+func (x *RespReadWriter) WriteVerbatimString(v string) error {
+	return x.WriteVerbatimBytes(utils.StrB(v))
 }
 
 // WriteBigInt writes a [Big number](https://redis.io/docs/latest/develop/reference/protocol-spec/#big-number-reply) for RESP3 connections or an [Integer](https://redis.io/docs/latest/develop/reference/protocol-spec/#integer-reply) for RESP2 connections.
 // If v cannot be represented in an int64, the result is undefined when sending to a RESP2 client.
-func (h *ClientHandler) WriteBigInt(v big.Int) error {
-	if h.resp2compat {
-		return h.WriteInt64(v.Int64())
+func (x *RespReadWriter) WriteBigInt(v big.Int) error {
+	if x.resp2compat {
+		return x.WriteInt64(v.Int64())
 	}
-	return h.writeWithType(types.RespBigInt, v.Append(nil, 10), nil)
+	return x.writeWithType(types.RespBigInt, v.Append(nil, 10), nil)
 }
 
 // WriteArrayHeader writes an [Array](https://redis.io/docs/latest/develop/reference/protocol-spec/#array-reply) header.
-func (h *ClientHandler) WriteArrayHeader(l int) error {
-	return h.writeWithType(types.RespArray, strconv.AppendInt(h.appendIntBuf[:0], int64(l), 10), nil)
+func (x *RespReadWriter) WriteArrayHeader(l int) error {
+	return x.writeWithType(types.RespArray, strconv.AppendInt(x.appendIntBuf[:0], int64(l), 10), nil)
 }
 
 // WriteArrayBytes is a convenience method to write an array of Bulk strings.
-func (h *ClientHandler) WriteArrayBytes(v [][]byte) error {
-	if err := h.WriteArrayHeader(len(v)); err != nil {
+func (x *RespReadWriter) WriteArrayBytes(v [][]byte) error {
+	if err := x.WriteArrayHeader(len(v)); err != nil {
 		return err
 	}
 	for _, arg := range v {
-		if err := h.WriteBytes(arg); err != nil {
+		if err := x.WriteBytes(arg); err != nil {
 			return err
 		}
 	}
@@ -773,12 +710,12 @@ func (h *ClientHandler) WriteArrayBytes(v [][]byte) error {
 }
 
 // WriteArrayString is a convenience method to write an array of Bulk strings.
-func (h *ClientHandler) WriteArrayString(v []string) error {
-	if err := h.WriteArrayHeader(len(v)); err != nil {
+func (x *RespReadWriter) WriteArrayString(v []string) error {
+	if err := x.WriteArrayHeader(len(v)); err != nil {
 		return err
 	}
 	for _, arg := range v {
-		if err := h.WriteString(arg); err != nil {
+		if err := x.WriteString(arg); err != nil {
 			return err
 		}
 	}
@@ -786,12 +723,12 @@ func (h *ClientHandler) WriteArrayString(v []string) error {
 }
 
 // WriteArray writes an array of any values that can be converted to a RESP type.
-func (h *ClientHandler) WriteArray(v []any) error {
-	if err := h.WriteArrayHeader(len(v)); err != nil {
+func (x *RespReadWriter) WriteArray(v []any) error {
+	if err := x.WriteArrayHeader(len(v)); err != nil {
 		return err
 	}
 	for _, arg := range v {
-		if err := h.Write(arg); err != nil {
+		if err := x.Write(arg); err != nil {
 			return err
 		}
 	}
@@ -799,23 +736,23 @@ func (h *ClientHandler) WriteArray(v []any) error {
 }
 
 // WriteMapHeader writes a [Map](https://redis.io/docs/latest/develop/reference/protocol-spec/#map-reply) header with the specified length. For RESP2 connections, this writes an [Array](https://redis.io/docs/latest/develop/reference/protocol-spec/#array-reply) header with twice the specified length.
-func (h *ClientHandler) WriteMapHeader(l int) error {
-	if h.resp2compat {
-		return h.WriteArrayHeader(l * 2)
+func (x *RespReadWriter) WriteMapHeader(l int) error {
+	if x.resp2compat {
+		return x.WriteArrayHeader(l * 2)
 	}
-	return h.writeWithType(types.RespMap, strconv.AppendInt(h.appendIntBuf[:0], int64(l), 10), nil)
+	return x.writeWithType(types.RespMap, strconv.AppendInt(x.appendIntBuf[:0], int64(l), 10), nil)
 }
 
 // WriteMapBytes is a convenience method to write a map of Bulk strings.
-func (h *ClientHandler) WriteMapBytes(v map[string][]byte) error {
-	if err := h.WriteMapHeader(len(v)); err != nil {
+func (x *RespReadWriter) WriteMapBytes(v map[string][]byte) error {
+	if err := x.WriteMapHeader(len(v)); err != nil {
 		return err
 	}
 	for k, arg := range v {
-		if err := h.WriteString(k); err != nil {
+		if err := x.WriteString(k); err != nil {
 			return err
 		}
-		if err := h.WriteBytes(arg); err != nil {
+		if err := x.WriteBytes(arg); err != nil {
 			return err
 		}
 	}
@@ -823,15 +760,15 @@ func (h *ClientHandler) WriteMapBytes(v map[string][]byte) error {
 }
 
 // WriteMapString is a convenience method to write a map of Bulk strings.
-func (h *ClientHandler) WriteMapString(v map[string]string) error {
-	if err := h.WriteMapHeader(len(v)); err != nil {
+func (x *RespReadWriter) WriteMapString(v map[string]string) error {
+	if err := x.WriteMapHeader(len(v)); err != nil {
 		return err
 	}
 	for k, arg := range v {
-		if err := h.WriteString(k); err != nil {
+		if err := x.WriteString(k); err != nil {
 			return err
 		}
-		if err := h.WriteString(arg); err != nil {
+		if err := x.WriteString(arg); err != nil {
 			return err
 		}
 	}
@@ -839,15 +776,15 @@ func (h *ClientHandler) WriteMapString(v map[string]string) error {
 }
 
 // WriteMap writes a map of any values that can be converted to a RESP type.
-func (h *ClientHandler) WriteMap(v map[string]any) error {
-	if err := h.WriteMapHeader(len(v)); err != nil {
+func (x *RespReadWriter) WriteMap(v map[string]any) error {
+	if err := x.WriteMapHeader(len(v)); err != nil {
 		return err
 	}
 	for k, arg := range v {
-		if err := h.WriteString(k); err != nil {
+		if err := x.WriteString(k); err != nil {
 			return err
 		}
-		if err := h.Write(arg); err != nil {
+		if err := x.Write(arg); err != nil {
 			return err
 		}
 	}
@@ -855,20 +792,20 @@ func (h *ClientHandler) WriteMap(v map[string]any) error {
 }
 
 // WriteSetHeader writes a [Set](https://redis.io/docs/latest/develop/reference/protocol-spec/#set-reply) header with the specified length. For RESP2 connections, this writes an [Array](https://redis.io/docs/latest/develop/reference/protocol-spec/#array-reply) header with twice the specified length.
-func (h *ClientHandler) WriteSetHeader(l int) error {
-	if h.resp2compat {
-		return h.WriteArrayHeader(l)
+func (x *RespReadWriter) WriteSetHeader(l int) error {
+	if x.resp2compat {
+		return x.WriteArrayHeader(l)
 	}
-	return h.writeWithType(types.RespSet, strconv.AppendInt(h.appendIntBuf[:0], int64(l), 10), nil)
+	return x.writeWithType(types.RespSet, strconv.AppendInt(x.appendIntBuf[:0], int64(l), 10), nil)
 }
 
 // WriteSetBytes is a convenience method to write a set of Bulk strings.
-func (h *ClientHandler) WriteSetBytes(v [][]byte) error {
-	if err := h.WriteSetHeader(len(v)); err != nil {
+func (x *RespReadWriter) WriteSetBytes(v [][]byte) error {
+	if err := x.WriteSetHeader(len(v)); err != nil {
 		return err
 	}
 	for _, arg := range v {
-		if err := h.WriteBytes(arg); err != nil {
+		if err := x.WriteBytes(arg); err != nil {
 			return err
 		}
 	}
@@ -876,12 +813,12 @@ func (h *ClientHandler) WriteSetBytes(v [][]byte) error {
 }
 
 // WriteSetString is a convenience method to write a set of Bulk strings.
-func (h *ClientHandler) WriteSetString(v []string) error {
-	if err := h.WriteSetHeader(len(v)); err != nil {
+func (x *RespReadWriter) WriteSetString(v []string) error {
+	if err := x.WriteSetHeader(len(v)); err != nil {
 		return err
 	}
 	for _, arg := range v {
-		if err := h.WriteString(arg); err != nil {
+		if err := x.WriteString(arg); err != nil {
 			return err
 		}
 	}
@@ -889,12 +826,12 @@ func (h *ClientHandler) WriteSetString(v []string) error {
 }
 
 // WriteSet writes a set of any values that can be converted to a RESP type.
-func (h *ClientHandler) WriteSet(v []any) error {
-	if err := h.WriteSetHeader(len(v)); err != nil {
+func (x *RespReadWriter) WriteSet(v []any) error {
+	if err := x.WriteSetHeader(len(v)); err != nil {
 		return err
 	}
 	for _, arg := range v {
-		if err := h.Write(arg); err != nil {
+		if err := x.Write(arg); err != nil {
 			return err
 		}
 	}
@@ -902,18 +839,18 @@ func (h *ClientHandler) WriteSet(v []any) error {
 }
 
 // WriteAttrBytes writes an [Attribute](https://github.com/antirez/RESP3/blob/master/spec.md#attribute-type) with the given data. For RESP2 connections, function calls are silently discarded and no data is written
-func (h *ClientHandler) WriteAttrBytes(v map[string][]byte) error {
-	if h.resp2compat {
+func (x *RespReadWriter) WriteAttrBytes(v map[string][]byte) error {
+	if x.resp2compat {
 		return nil
 	}
-	if err := h.writeWithType(types.RespAttr, strconv.AppendInt(h.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
+	if err := x.writeWithType(types.RespAttr, strconv.AppendInt(x.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
 		return err
 	}
 	for k, arg := range v {
-		if err := h.WriteString(k); err != nil {
+		if err := x.WriteString(k); err != nil {
 			return err
 		}
-		if err := h.WriteBytes(arg); err != nil {
+		if err := x.WriteBytes(arg); err != nil {
 			return err
 		}
 	}
@@ -921,18 +858,18 @@ func (h *ClientHandler) WriteAttrBytes(v map[string][]byte) error {
 }
 
 // WriteAttrString writes an [Attribute](https://github.com/antirez/RESP3/blob/master/spec.md#attribute-type) with the given data. For RESP2 connections, function calls are silently discarded and no data is written
-func (h *ClientHandler) WriteAttrString(v map[string]string) error {
-	if h.resp2compat {
+func (x *RespReadWriter) WriteAttrString(v map[string]string) error {
+	if x.resp2compat {
 		return nil
 	}
-	if err := h.writeWithType(types.RespAttr, strconv.AppendInt(h.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
+	if err := x.writeWithType(types.RespAttr, strconv.AppendInt(x.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
 		return err
 	}
 	for k, arg := range v {
-		if err := h.WriteString(k); err != nil {
+		if err := x.WriteString(k); err != nil {
 			return err
 		}
-		if err := h.WriteString(arg); err != nil {
+		if err := x.WriteString(arg); err != nil {
 			return err
 		}
 	}
@@ -940,34 +877,18 @@ func (h *ClientHandler) WriteAttrString(v map[string]string) error {
 }
 
 // WriteAttr writes an [Attribute](https://github.com/antirez/RESP3/blob/master/spec.md#attribute-type) with the given data. For RESP2 connections, function calls are silently discarded and no data is written
-func (h *ClientHandler) WriteAttr(v map[string]any) error {
-	if h.resp2compat {
+func (x *RespReadWriter) WriteAttr(v map[string]any) error {
+	if x.resp2compat {
 		return nil
 	}
-	if err := h.writeWithType(types.RespAttr, strconv.AppendInt(h.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
+	if err := x.writeWithType(types.RespAttr, strconv.AppendInt(x.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
 		return err
 	}
 	for k, arg := range v {
-		if err := h.WriteString(k); err != nil {
+		if err := x.WriteString(k); err != nil {
 			return err
 		}
-		if err := h.Write(arg); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// WritePushHeader writes a [Push](https://redis.io/docs/latest/develop/reference/protocol-spec/#push-event) event with the given data. For RESP2 connections, function calls are silently discarded and no data is written.
-func (h *ClientHandler) WritePushBytes(v [][]byte) error {
-	if h.resp2compat {
-		return nil
-	}
-	if err := h.writeWithType(types.RespPush, strconv.AppendInt(h.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
-		return err
-	}
-	for _, arg := range v {
-		if err := h.WriteBytes(arg); err != nil {
+		if err := x.Write(arg); err != nil {
 			return err
 		}
 	}
@@ -975,15 +896,15 @@ func (h *ClientHandler) WritePushBytes(v [][]byte) error {
 }
 
 // WritePushHeader writes a [Push](https://redis.io/docs/latest/develop/reference/protocol-spec/#push-event) event with the given data. For RESP2 connections, function calls are silently discarded and no data is written.
-func (h *ClientHandler) WritePushString(v []string) error {
-	if h.resp2compat {
+func (x *RespReadWriter) WritePushBytes(v [][]byte) error {
+	if x.resp2compat {
 		return nil
 	}
-	if err := h.writeWithType(types.RespPush, strconv.AppendInt(h.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
+	if err := x.writeWithType(types.RespPush, strconv.AppendInt(x.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
 		return err
 	}
 	for _, arg := range v {
-		if err := h.WriteString(arg); err != nil {
+		if err := x.WriteBytes(arg); err != nil {
 			return err
 		}
 	}
@@ -991,15 +912,31 @@ func (h *ClientHandler) WritePushString(v []string) error {
 }
 
 // WritePushHeader writes a [Push](https://redis.io/docs/latest/develop/reference/protocol-spec/#push-event) event with the given data. For RESP2 connections, function calls are silently discarded and no data is written.
-func (h *ClientHandler) WritePush(v []any) error {
-	if h.resp2compat {
+func (x *RespReadWriter) WritePushString(v []string) error {
+	if x.resp2compat {
 		return nil
 	}
-	if err := h.writeWithType(types.RespPush, strconv.AppendInt(h.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
+	if err := x.writeWithType(types.RespPush, strconv.AppendInt(x.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
 		return err
 	}
 	for _, arg := range v {
-		if err := h.Write(arg); err != nil {
+		if err := x.WriteString(arg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// WritePushHeader writes a [Push](https://redis.io/docs/latest/develop/reference/protocol-spec/#push-event) event with the given data. For RESP2 connections, function calls are silently discarded and no data is written.
+func (x *RespReadWriter) WritePush(v []any) error {
+	if x.resp2compat {
+		return nil
+	}
+	if err := x.writeWithType(types.RespPush, strconv.AppendInt(x.appendIntBuf[:0], int64(len(v)), 10), nil); err != nil {
+		return err
+	}
+	for _, arg := range v {
+		if err := x.Write(arg); err != nil {
 			return err
 		}
 	}
@@ -1007,32 +944,32 @@ func (h *ClientHandler) WritePush(v []any) error {
 }
 
 // Write writes any value that can be converted to a RESP type.
-func (h *ClientHandler) Write(v any) error {
+func (x *RespReadWriter) Write(v any) error {
 	switch v := v.(type) {
 	case []byte:
-		return h.WriteBytes(v)
+		return x.WriteBytes(v)
 	case string:
-		return h.WriteString(v)
+		return x.WriteString(v)
 	case int:
-		return h.WriteInt(v)
+		return x.WriteInt(v)
 	case int32:
-		return h.WriteInt(int(v))
+		return x.WriteInt(int(v))
 	case int64:
-		return h.WriteInt64(v)
+		return x.WriteInt64(v)
 	case float64:
-		return h.WriteFloat(v)
+		return x.WriteFloat(v)
 	case bool:
-		return h.WriteBool(v)
+		return x.WriteBool(v)
 	case error:
-		return h.WriteError(v)
+		return x.WriteError(v)
 	case nil:
-		return h.WriteNullString()
+		return x.WriteNullString()
 	case []any:
-		return h.WriteArray(v)
+		return x.WriteArray(v)
 	case map[string]any:
-		return h.WriteMap(v)
+		return x.WriteMap(v)
 	case big.Int:
-		return h.WriteBigInt(v)
+		return x.WriteBigInt(v)
 	default:
 		return fmt.Errorf("unsupported type: %T", v)
 	}
@@ -1040,6 +977,6 @@ func (h *ClientHandler) Write(v any) error {
 
 // WriteRaw writes raw RESP data to the connection.
 // You can also use this function to check for any previous write errors by writing a nil or empty value.
-func (h *ClientHandler) WriteRaw(v []byte) error {
-	return h.write(v)
+func (x *RespReadWriter) WriteRaw(v []byte) error {
+	return x.write(v)
 }
