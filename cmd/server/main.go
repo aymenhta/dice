@@ -4,7 +4,7 @@ import (
 	"log"
 	"net"
 
-	"aymenhta.com/dice/internal/client_handler"
+	"aymenhta.com/dice/internal/commands"
 	"aymenhta.com/dice/internal/resp"
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
@@ -33,29 +33,29 @@ func main() {
 func handleClient(conn net.Conn, store *store.Store) {
 	defer conn.Close()
 
-	handler := client_handler.New(conn)
-	defer handler.Close()
+	manager := commands.NewManager(conn)
+	defer manager.Close()
 
 	log.Printf("new client has arrived %+v\n", conn.RemoteAddr())
 
-	if err := handler.SetOptions(resp.RespReadWriterOpts{
+	if err := manager.SetOptions(resp.RespReadWriterOpts{
 		MaxMultiBulkLength: utils.Pointer(512 * 1024 * 1024),
 		MaxBulkLength:      utils.Pointer(65 * 1024 * 1024),
 		MaxBufferSize:      utils.Pointer(4096),
 	}); err != nil {
-		handler.CloseWithError(err)
+		manager.CloseWithError(err)
 	}
 
 	for {
-		args, err := handler.Next()
+		args, err := manager.Next()
 		if err != nil {
-			handler.CloseWithError(err)
+			manager.CloseWithError(err)
 			log.Printf("closed connection from %s, during read: %v\n", conn.RemoteAddr(), err)
 			return
 		}
 
-		if handler.Dispatch(store, args); err != nil {
-			handler.CloseWithError(err)
+		if manager.Dispatch(store, args); err != nil {
+			manager.CloseWithError(err)
 			log.Printf("closed connection from %s during write: %v\n", conn.RemoteAddr(), err)
 			return
 		}

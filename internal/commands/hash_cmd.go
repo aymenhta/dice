@@ -1,4 +1,4 @@
-package client_handler
+package commands
 
 import (
 	"slices"
@@ -47,9 +47,9 @@ func buildHash(pairs []HsetPair) (map[string]*store.HashField, int64) {
 
 // HSET key field value [field value ...] -> the number of fields that were  ADDED
 // (updating an existing field doesn't count).
-func (h *ClientHandler) cmdHSet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdHSet(db *store.Database[string], args [][]byte) error {
 	if !(len(args) >= 3 && len(args)%2 == 1) {
-		return h.WriteError(utils.WrongArgsNum("hset"))
+		return cm.WriteError(utils.WrongArgsNum("hset"))
 	}
 
 	key := utils.BStr(utils.CopyBytes(args[0]))
@@ -63,12 +63,12 @@ func (h *ClientHandler) cmdHSet(db *store.Database[string], args [][]byte) error
 			Value: &store.Hash{Value: hash},
 			Ttl:   nil,
 		})
-		return h.WriteInt64(added)
+		return cm.WriteInt64(added)
 	}
 
 	hashEntry, tok := entry.AsHash()
 	if !tok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
 	added := 0
@@ -79,31 +79,52 @@ func (h *ClientHandler) cmdHSet(db *store.Database[string], args [][]byte) error
 			added += 1
 		}
 	}
-	return h.WriteInt(added)
+	return cm.WriteInt(added)
 }
 
 // HGET key field -> the field's value, or nil if the key or field is missing
-func (h *ClientHandler) cmdHGet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdHGet(db *store.Database[string], args [][]byte) error {
 	if len(args) != 2 {
-		return h.WriteError(utils.WrongArgsNum("hget"))
+		return cm.WriteError(utils.WrongArgsNum("hget"))
 	}
 
 	key := utils.BStr(args[0])
 	field := utils.BStr(args[1])
 	entry, ok := lives(db, key)
 	if !ok {
-		return h.WriteNullString()
+		return cm.WriteNullString()
 	}
 
 	hashEntry, tok := entry.AsHash()
 	if !tok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
 	hashField, fok := hashEntry.Value[field]
 	if !fok {
-		return h.WriteNullString()
+		return cm.WriteNullString()
 	}
 
-	return h.WriteBytes(hashField.Value)
+	return cm.WriteBytes(hashField.Value)
+}
+
+// HGETALL key -> a flat array of field, value, field, value, ...
+// Empty for a missing key. Field order is unspecified.
+func (cm *RespCommandManager) cmdHGetAll(db *store.Database[string], args [][]byte) error {
+	entry, ok := lives(db, utils.BStr(args[0]))
+	if !ok {
+		return cm.WriteArray(nil)
+	}
+
+	hashE, ok := entry.AsHash()
+	if !ok {
+		return cm.WriteWrongTypeError()
+	}
+
+	out := make([][]byte, 0, len(hashE.Value)*2)
+	for field, value := range hashE.Value {
+		out = append(out, utils.StrB(field))
+		out = append(out, value.Value)
+	}
+	return cm.WriteArrayBytes(out)
 }

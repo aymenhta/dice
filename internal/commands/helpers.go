@@ -1,4 +1,4 @@
-package client_handler
+package commands
 
 import (
 	"time"

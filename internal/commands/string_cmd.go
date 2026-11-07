@@ -1,4 +1,4 @@
-package client_handler
+package commands
 
 import (
 	"bytes"
@@ -155,9 +155,9 @@ func (x *SetTTL) expires_at() *time.Time {
 	return nil
 }
 
-func (h *ClientHandler) cmdSet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdSet(db *store.Database[string], args [][]byte) error {
 	if len(args) < 2 {
-		return h.WriteError(utils.WrongArgsNum("set"))
+		return cm.WriteError(utils.WrongArgsNum("set"))
 	}
 
 	key := utils.BStr(utils.CopyBytes(args[0]))
@@ -180,52 +180,52 @@ func (h *ClientHandler) cmdSet(db *store.Database[string], args [][]byte) error 
 		option := utils.BStr(utils.BytesToLower(args[i]))
 		if option == "xx" {
 			if cond.kind != SET_ALWAYS && cond.kind != SET_XX {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			cond.kind = SET_XX
 			i = i + 1
 		} else if option == "nx" {
 			if cond.kind != SET_ALWAYS && cond.kind != SET_NX {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			cond.kind = SET_NX
 			i = i + 1
 		} else if option == "ifeq" {
 			if cond.kind != SET_ALWAYS {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			if i+1 >= len(args) {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			cond.kind = SET_IFEQ
 			cond.cmp_value = utils.CopyBytes(args[i+1])
 			i = i + 2
 		} else if option == "ifne" {
 			if cond.kind != SET_ALWAYS {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			if i+1 >= len(args) {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			cond.kind = SET_IFNE
 			cond.cmp_value = utils.CopyBytes(args[i+1])
 			i = i + 2
 		} else if option == "ifdeq" {
 			if cond.kind != SET_ALWAYS {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			if i+1 >= len(args) {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			cond.kind = SET_IFDEQ
 			cond.cmp_value = utils.CopyBytes(args[i+1])
 			i = i + 2
 		} else if option == "ifdne" {
 			if cond.kind != SET_ALWAYS {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			if i+1 >= len(args) {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			cond.kind = SET_IFDNE
 			cond.cmp_value = utils.CopyBytes(args[i+1])
@@ -235,7 +235,7 @@ func (h *ClientHandler) cmdSet(db *store.Database[string], args [][]byte) error 
 			i = i + 1
 		} else if option == "keepttl" {
 			if ttl.kind != nil && *ttl.kind != SET_TTL_KEEPTTL {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			ttl.kind = utils.Pointer(SET_TTL_KEEPTTL)
 			ttl.action = SET_TTL_KEEP
@@ -244,18 +244,18 @@ func (h *ClientHandler) cmdSet(db *store.Database[string], args [][]byte) error 
 			kind := ttl_value_option(option)
 			if kind != nil {
 				if i+1 >= len(args) {
-					return h.WriteError(resp.ErrSyntaxError)
+					return cm.WriteError(resp.ErrSyntaxError)
 				}
 				if ttl.kind != nil && *ttl.kind != *kind {
-					return h.WriteError(resp.ErrSyntaxError)
+					return cm.WriteError(resp.ErrSyntaxError)
 				}
 				n, err := utils.ParseInt64(args[i+1])
 				if err != nil {
-					return h.WriteError(err)
+					return cm.WriteError(err)
 				}
 				new_ttl, err := expiryToTime(*kind, n, "set")
 				if err != nil {
-					return h.WriteError(err)
+					return cm.WriteError(err)
 				}
 
 				ttl.kind = kind
@@ -263,7 +263,7 @@ func (h *ClientHandler) cmdSet(db *store.Database[string], args [][]byte) error 
 				ttl.new_ttl = new_ttl
 				i = i + 2
 			} else {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 		}
 	}
@@ -288,7 +288,7 @@ func (h *ClientHandler) cmdSet(db *store.Database[string], args [][]byte) error 
 
 		typedEntry, tok := entry.AsStr()
 		if !tok {
-			return h.WriteWrongTypeError()
+			return cm.WriteWrongTypeError()
 		}
 
 		if exists && typedEntry != nil {
@@ -298,7 +298,7 @@ func (h *ClientHandler) cmdSet(db *store.Database[string], args [][]byte) error 
 			}
 		} else if exists && typedEntry == nil {
 			if get || cond.needs_value() {
-				return h.WriteWrongTypeError()
+				return cm.WriteWrongTypeError()
 			}
 		}
 
@@ -319,142 +319,142 @@ func (h *ClientHandler) cmdSet(db *store.Database[string], args [][]byte) error 
 
 	// Response building
 	if get {
-		return h.WriteBytes(old)
+		return cm.WriteBytes(old)
 	} else if didSet {
-		return h.WriteSimpleString("OK")
+		return cm.WriteSimpleString("OK")
 	} else {
-		return h.WriteNullString()
+		return cm.WriteNullString()
 	}
 }
 
-func (h *ClientHandler) cmdGet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdGet(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
-		return h.WriteError(utils.WrongArgsNum("get"))
+		return cm.WriteError(utils.WrongArgsNum("get"))
 	}
 
 	key := utils.BStr(args[0])
 
 	entry, ok := lives(db, key)
 	if !ok {
-		return h.WriteNullString()
+		return cm.WriteNullString()
 	}
 
 	typedEntry, tok := entry.AsStr()
 	if !tok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
-	return h.WriteBytes(typedEntry.Value)
+	return cm.WriteBytes(typedEntry.Value)
 }
 
-func (h *ClientHandler) incr_decrByDelta(db *store.Database[string], args [][]byte, delta int64) error {
+func (cm *RespCommandManager) incr_decrByDelta(db *store.Database[string], args [][]byte, delta int64) error {
 
 	key := utils.BStr(utils.CopyBytes(args[0]))
 	entry, ok := db.Get(key)
 	if !ok {
 		db.Set(key, store.NewStringEntry(utils.Int64ToBytes(delta), nil))
-		return h.WriteInt64(delta)
+		return cm.WriteInt64(delta)
 	}
 
 	if entry.IsExpired(time.Now()) {
 		// Logically absent: start from zero, no TTL.
 		db.Set(key, store.NewStringEntry(utils.Int64ToBytes(delta), nil))
-		return h.WriteInt64(delta)
+		return cm.WriteInt64(delta)
 	}
 
 	typedEntry, ok := entry.AsStr()
 	if !ok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
 	current, err := utils.ParseInt64(typedEntry.Value)
 	if err != nil {
-		return h.WriteError(err)
+		return cm.WriteError(err)
 	}
 
 	next, ok := utils.Add64(current, delta)
 	if !ok {
-		return h.WriteError(resp.ErrIncrDecrOverflow)
+		return cm.WriteError(resp.ErrIncrDecrOverflow)
 	}
 
 	typedEntry.Value = utils.Int64ToBytes(next)
-	return h.WriteInt64(next)
+	return cm.WriteInt64(next)
 }
 
-func (h *ClientHandler) cmdIncr(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdIncr(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
-		return h.WriteError(utils.WrongArgsNum("incr"))
+		return cm.WriteError(utils.WrongArgsNum("incr"))
 	}
 
-	return h.incr_decrByDelta(db, args, 1)
+	return cm.incr_decrByDelta(db, args, 1)
 }
 
-func (h *ClientHandler) cmdDecr(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdDecr(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
-		return h.WriteError(utils.WrongArgsNum("decr"))
+		return cm.WriteError(utils.WrongArgsNum("decr"))
 	}
 
-	return h.incr_decrByDelta(db, args, -1)
+	return cm.incr_decrByDelta(db, args, -1)
 }
 
-func (h *ClientHandler) cmdIncrBy(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdIncrBy(db *store.Database[string], args [][]byte) error {
 	if len(args) != 2 {
-		return h.WriteError(utils.WrongArgsNum("incrby"))
+		return cm.WriteError(utils.WrongArgsNum("incrby"))
 	}
 
 	delta, err := utils.ParseInt64(args[1])
 	if err != nil {
-		return h.WriteError(err)
+		return cm.WriteError(err)
 	}
 
-	return h.incr_decrByDelta(db, args, delta)
+	return cm.incr_decrByDelta(db, args, delta)
 }
-func (h *ClientHandler) cmdDecrBy(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdDecrBy(db *store.Database[string], args [][]byte) error {
 	if len(args) != 2 {
-		return h.WriteError(utils.WrongArgsNum("decrby"))
+		return cm.WriteError(utils.WrongArgsNum("decrby"))
 	}
 
 	delta, err := utils.ParseInt64(args[1])
 	if err != nil {
-		return h.WriteError(err)
+		return cm.WriteError(err)
 	}
 
-	return h.incr_decrByDelta(db, args, -delta)
+	return cm.incr_decrByDelta(db, args, -delta)
 }
 
-func (h *ClientHandler) cmdMGet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdMGet(db *store.Database[string], args [][]byte) error {
 	if len(args) == 0 {
-		return h.WriteError(utils.WrongArgsNum("mget"))
+		return cm.WriteError(utils.WrongArgsNum("mget"))
 	}
 
-	h.WriteArrayHeader(len(args))
+	cm.WriteArrayHeader(len(args))
 	for _, arg := range args {
-		if h.Werr() != nil {
-			return h.Werr()
+		if cm.Werr() != nil {
+			return cm.Werr()
 		}
 		key := utils.BStr(arg)
 		entry, ok := lives(db, key)
 		if !ok {
-			h.WriteNullString()
+			cm.WriteNullString()
 			continue
 		}
 
 		typedEntry, valid := entry.AsStr()
 		if !valid {
-			h.WriteNullString()
+			cm.WriteNullString()
 		} else {
-			h.WriteBytes(typedEntry.Value)
+			cm.WriteBytes(typedEntry.Value)
 		}
 	}
 
-	return h.Werr()
+	return cm.Werr()
 }
 
 // Each pair is written atomically, but the batch as a whole is NOT atomic:
 // another connection can observe some keys set and others not yet.
 // Like SET, MSET discards any existing TTL.
-func (h *ClientHandler) cmdMSet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdMSet(db *store.Database[string], args [][]byte) error {
 	if len(args) != 0 && len(args)%2 != 0 {
-		return h.WriteError(utils.WrongArgsNum("mset"))
+		return cm.WriteError(utils.WrongArgsNum("mset"))
 	}
 
 	pairs := make(map[string]*store.Entry)
@@ -466,31 +466,31 @@ func (h *ClientHandler) cmdMSet(db *store.Database[string], args [][]byte) error
 	}
 
 	db.MSet(pairs)
-	return h.WriteSimpleString("OK")
+	return cm.WriteSimpleString("OK")
 }
 
-func (h *ClientHandler) cmdGetDel(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdGetDel(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
-		return h.WriteError(utils.WrongArgsNum("getdel"))
+		return cm.WriteError(utils.WrongArgsNum("getdel"))
 	}
 
 	key := utils.BStr(args[0])
 	value, exists, strTyped := db.GetAndRemove(key)
 	if !exists {
-		return h.WriteNullString()
+		return cm.WriteNullString()
 	}
 
 	if !strTyped {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
-	return h.WriteBytes(value)
+	return cm.WriteBytes(value)
 }
 
 // DELEX key [IFEQ v | IFNE v | IFDEQ d | IFDNE d] -> 1 if deleted, else 0.
-func (h *ClientHandler) cmdDelEx(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdDelEx(db *store.Database[string], args [][]byte) error {
 	if len(args) == 0 {
-		return h.WriteError(utils.WrongArgsNum("delex"))
+		return cm.WriteError(utils.WrongArgsNum("delex"))
 	}
 
 	key := utils.BStr(args[0])
@@ -503,7 +503,7 @@ func (h *ClientHandler) cmdDelEx(db *store.Database[string], args [][]byte) erro
 		operand := args[2]
 
 		if option != "ifeq" && option != "ifne" && option != "ifdeq" && option != "ifdne" {
-			return h.WriteError(resp.ErrSyntaxError)
+			return cm.WriteError(resp.ErrSyntaxError)
 		}
 
 		switch option {
@@ -520,42 +520,42 @@ func (h *ClientHandler) cmdDelEx(db *store.Database[string], args [][]byte) erro
 			condition.kind = SET_IFDNE
 			break
 		default:
-			return h.WriteError(resp.ErrSyntaxError)
+			return cm.WriteError(resp.ErrSyntaxError)
 		}
 		condition.cmp_value = operand
 	} else {
-		return h.WriteError(resp.ErrSyntaxError)
+		return cm.WriteError(resp.ErrSyntaxError)
 	}
 
 	now := time.Now()
 	entry, ok := db.Get(key)
 	if !ok {
-		return h.WriteInt64(0)
+		return cm.WriteInt64(0)
 	}
 
 	if entry.IsExpired(now) {
 		db.Remove(key) // lazily evict
-		return h.WriteInt64(0)
+		return cm.WriteInt64(0)
 	}
 
 	strEntry, tok := entry.AsStr()
 	if !tok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
 	allowed := condition.cond_allows(strEntry.Value)
 	if !allowed {
-		return h.WriteInt64(0)
+		return cm.WriteInt64(0)
 	}
 
 	db.Remove(key)
-	return h.WriteInt64(1)
+	return cm.WriteInt64(1)
 }
 
 // GETEX key [EX s | PX ms | EXAT ts | PXAT ms-ts | PERSIST]
-func (h *ClientHandler) cmdGetEx(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdGetEx(db *store.Database[string], args [][]byte) error {
 	if len(args) == 0 {
-		return h.WriteError(utils.WrongArgsNum("getex"))
+		return cm.WriteError(utils.WrongArgsNum("getex"))
 	}
 
 	key := utils.BStr(args[0])
@@ -566,7 +566,7 @@ func (h *ClientHandler) cmdGetEx(db *store.Database[string], args [][]byte) erro
 		opt := utils.BStr(utils.BytesToLower(args[i]))
 		if opt == "persist" {
 			if ttl.kind != nil && *ttl.kind != SET_TTL_PERSIST {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 			ttl.kind = utils.Pointer(SET_TTL_PERSIST)
 			ttl.action = SET_TTL_CLEAR
@@ -575,21 +575,21 @@ func (h *ClientHandler) cmdGetEx(db *store.Database[string], args [][]byte) erro
 			k := ttl_value_option(opt)
 			if k != nil {
 				if i+1 >= len(args) {
-					return h.WriteError(resp.ErrSyntaxError)
+					return cm.WriteError(resp.ErrSyntaxError)
 				}
 
 				if ttl.kind != nil && *ttl.kind != *k {
-					return h.WriteError(resp.ErrSyntaxError)
+					return cm.WriteError(resp.ErrSyntaxError)
 				}
 
 				n, err := utils.ParseInt64(args[i+1])
 				if err != nil {
-					return h.WriteError(err)
+					return cm.WriteError(err)
 				}
 
 				t, err := expiryToTime(*k, n, "getex")
 				if err != nil {
-					return h.WriteError(err)
+					return cm.WriteError(err)
 				}
 
 				ttl.new_ttl = t
@@ -597,7 +597,7 @@ func (h *ClientHandler) cmdGetEx(db *store.Database[string], args [][]byte) erro
 				ttl.kind = k
 				i += 2
 			} else {
-				return h.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(resp.ErrSyntaxError)
 			}
 		}
 	}
@@ -605,17 +605,17 @@ func (h *ClientHandler) cmdGetEx(db *store.Database[string], args [][]byte) erro
 	now := time.Now()
 	entry, ok := db.Get(key)
 	if !ok {
-		return h.WriteNullString()
+		return cm.WriteNullString()
 	}
 
 	if entry.IsExpired(now) {
 		db.Remove(key)
-		return h.WriteNullString()
+		return cm.WriteNullString()
 	}
 
 	strEntry, tok := entry.AsStr()
 	if !tok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
 	if ttl.action == SET_TTL_CLEAR {
@@ -624,31 +624,31 @@ func (h *ClientHandler) cmdGetEx(db *store.Database[string], args [][]byte) erro
 		entry.Ttl = ttl.new_ttl
 	}
 
-	return h.WriteBytes(strEntry.Value)
+	return cm.WriteBytes(strEntry.Value)
 }
 
-func (h *ClientHandler) cmdStrLen(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdStrLen(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
-		return h.WriteError(utils.WrongArgsNum("strlen"))
+		return cm.WriteError(utils.WrongArgsNum("strlen"))
 	}
 
 	key := utils.BStr(args[0])
 	entry, ok := lives(db, key)
 	if !ok {
-		return h.WriteInt64(0)
+		return cm.WriteInt64(0)
 	}
 
 	strEntry, tok := entry.AsStr()
 	if !tok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
-	return h.WriteInt(len(strEntry.Value))
+	return cm.WriteInt(len(strEntry.Value))
 }
 
-func (h *ClientHandler) cmdAppend(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdAppend(db *store.Database[string], args [][]byte) error {
 	if len(args) != 2 {
-		return h.WriteError(utils.WrongArgsNum("append"))
+		return cm.WriteError(utils.WrongArgsNum("append"))
 	}
 
 	key := utils.BStr(utils.CopyBytes(args[0]))
@@ -660,17 +660,17 @@ func (h *ClientHandler) cmdAppend(db *store.Database[string], args [][]byte) err
 	if !ok || entry.IsExpired(now) {
 		l := len(suffix)
 		db.Set(key, store.NewStringEntry(suffix, nil))
-		return h.WriteInt(l)
+		return cm.WriteInt(l)
 	}
 
 	strEntry, tok := entry.AsStr()
 	if !tok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
 	nl := len(strEntry.Value) + len(suffix)
-	if nl > h.MaxBulkLength() {
-		return h.WriteError(resp.ErrProtoInvalidBulkLength)
+	if nl > cm.MaxBulkLength() {
+		return cm.WriteError(resp.ErrProtoInvalidBulkLength)
 	}
 
 	var buff bytes.Buffer
@@ -678,66 +678,66 @@ func (h *ClientHandler) cmdAppend(db *store.Database[string], args [][]byte) err
 	buff.Write(suffix)
 	strEntry.Value = buff.Bytes()
 
-	return h.WriteInt(nl)
+	return cm.WriteInt(nl)
 }
 
-func (h *ClientHandler) cmdDigest(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdDigest(db *store.Database[string], args [][]byte) error {
 	if len(args) != 1 {
-		return h.WriteError(utils.WrongArgsNum("digest"))
+		return cm.WriteError(utils.WrongArgsNum("digest"))
 	}
 
 	key := utils.BStr(args[0])
 	entry, ok := lives(db, key)
 	if !ok {
-		return h.WriteNullString()
+		return cm.WriteNullString()
 	}
 
 	strEntry, tok := entry.AsStr()
 	if !tok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
 	digest := utils.BytesToXXH3hex(strEntry.Value)
-	return h.WriteString(digest)
+	return cm.WriteString(digest)
 }
 
-func (h *ClientHandler) cmdGetRange(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdGetRange(db *store.Database[string], args [][]byte) error {
 	key := utils.BStr(args[0])
 	start, err := utils.ParseInt64(args[1])
 	if err != nil {
-		return h.WriteError(err)
+		return cm.WriteError(err)
 	}
 	end, err := utils.ParseInt64(args[2])
 	if err != nil {
-		return h.WriteError(err)
+		return cm.WriteError(err)
 	}
 
 	entry, ok := lives(db, key)
 	if !ok {
-		return h.WriteString("")
+		return cm.WriteString("")
 	}
 
 	strEntry, ok := entry.AsStr()
 	if !ok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
 	s, e, ok := getrangeBounds(len(strEntry.Value), start, end)
 	if !ok {
-		return h.WriteString("")
+		return cm.WriteString("")
 	}
 
-	return h.WriteBytes(strEntry.Value[s : e+1])
+	return cm.WriteBytes(strEntry.Value[s : e+1])
 }
 
-func (h *ClientHandler) cmdSetRange(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdSetRange(db *store.Database[string], args [][]byte) error {
 	key := utils.BStr(utils.CopyBytes(args[0]))
 	offset, err := utils.ParseInt64(args[1])
 	if err != nil {
-		return h.WriteError(err)
+		return cm.WriteError(err)
 	}
 	if offset < 0 {
-		return h.WriteError(fmt.Errorf("offset is out of range"))
+		return cm.WriteError(fmt.Errorf("offset is out of range"))
 	}
 	value := args[2]
 	// an empty value is a no-op that reports the current
@@ -745,20 +745,20 @@ func (h *ClientHandler) cmdSetRange(db *store.Database[string], args [][]byte) e
 	if len(value) == 0 {
 		entry, ok := lives(db, key)
 		if !ok {
-			return h.WriteInt64(0)
+			return cm.WriteInt64(0)
 		}
 
 		strE, ok := entry.AsStr()
 		if !ok {
-			return h.WriteWrongTypeError()
+			return cm.WriteWrongTypeError()
 		}
 
-		return h.WriteInt(len(strE.Value))
+		return cm.WriteInt(len(strE.Value))
 	}
 
 	needed, ok := utils.Add64(offset, int64(len(value)))
-	if !ok || needed > int64(h.MaxBulkLength()) {
-		return h.WriteError(resp.ErrProtoInvalidBulkLength)
+	if !ok || needed > int64(cm.MaxBulkLength()) {
+		return cm.WriteError(resp.ErrProtoInvalidBulkLength)
 	}
 
 	// Zero-padded fresh value for the "absent" cases.
@@ -772,12 +772,12 @@ func (h *ClientHandler) cmdSetRange(db *store.Database[string], args [][]byte) e
 	entry, ok := lives(db, key)
 	if !ok || entry.IsExpired(now) {
 		db.Set(key, store.NewStringEntry(fresh(), nil))
-		return h.WriteInt64(needed)
+		return cm.WriteInt64(needed)
 	}
 
 	strE, ok := entry.AsStr()
 	if !ok {
-		return h.WriteWrongTypeError()
+		return cm.WriteWrongTypeError()
 	}
 
 	// if len(strE.Value) < int(needed) {
@@ -797,5 +797,5 @@ func (h *ClientHandler) cmdSetRange(db *store.Database[string], args [][]byte) e
 	copy(v[offset:], value)
 	l := len(v)
 	strE.Value = v
-	return h.WriteInt(l)
+	return cm.WriteInt(l)
 }
