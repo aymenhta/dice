@@ -41,3 +41,37 @@ func isCmdExpireAllowed(cond []byte, new_ttl time.Time, old_ttl *time.Time) (boo
 		return false, resp.ErrSyntaxError
 	}
 }
+
+// Maps GETRANGE's (possibly negative, inclusive) indices onto a concrete
+// inclusive byte range. `false` = empty.
+func getrangeBounds(len int, start, end int64) (int64, int64, bool) {
+	lenI := int64(len)
+	if start < 0 && end < 0 && start > end {
+		return -1, -1, false
+	}
+
+	s := start
+	e := end
+	if start < 0 {
+		s = lenI + start
+	}
+	if end < 0 {
+		e = lenI + end
+	}
+
+	if s < 0 {
+		s = 0
+	}
+	if e < 0 {
+		e = 0
+	}
+
+	if e >= lenI {
+		e = lenI - 1
+	}
+	if len == 0 || s > e {
+		return -1, -1, false
+	}
+
+	return s, e, true
+}

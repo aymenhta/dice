@@ -59,6 +59,16 @@ func (h *ClientHandler) Dispatch(store *store.Store, args [][]byte) error {
 		return h.cmdAppend(db, args)
 	case "digest":
 		return h.cmdDigest(db, args)
+	case "getrange":
+		if len(args) != 3 {
+			return h.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return h.cmdGetRange(db, args)
+	case "setrange":
+		if len(args) != 3 {
+			return h.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return h.cmdSetRange(db, args)
 
 	// hash commands
 	case "hset":

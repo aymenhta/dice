@@ -2,6 +2,7 @@ package client_handler
 
 import (
 	"bytes"
+	"fmt"
 	"slices"
 	"time"
 
@@ -698,4 +699,103 @@ func (h *ClientHandler) cmdDigest(db *store.Database[string], args [][]byte) err
 
 	digest := utils.BytesToXXH3hex(strEntry.Value)
 	return h.WriteString(digest)
+}
+
+func (h *ClientHandler) cmdGetRange(db *store.Database[string], args [][]byte) error {
+	key := utils.BStr(args[0])
+	start, err := utils.ParseInt64(args[1])
+	if err != nil {
+		return h.WriteError(err)
+	}
+	end, err := utils.ParseInt64(args[2])
+	if err != nil {
+		return h.WriteError(err)
+	}
+
+	entry, ok := lives(db, key)
+	if !ok {
+		return h.WriteString("")
+	}
+
+	strEntry, ok := entry.AsStr()
+	if !ok {
+		return h.WriteWrongTypeError()
+	}
+
+	s, e, ok := getrangeBounds(len(strEntry.Value), start, end)
+	if !ok {
+		return h.WriteString("")
+	}
+
+	return h.WriteBytes(strEntry.Value[s : e+1])
+}
+
+func (h *ClientHandler) cmdSetRange(db *store.Database[string], args [][]byte) error {
+	key := utils.BStr(utils.CopyBytes(args[0]))
+	offset, err := utils.ParseInt64(args[1])
+	if err != nil {
+		return h.WriteError(err)
+	}
+	if offset < 0 {
+		return h.WriteError(fmt.Errorf("offset is out of range"))
+	}
+	value := args[2]
+	// an empty value is a no-op that reports the current
+	// length, and never creates the key.
+	if len(value) == 0 {
+		entry, ok := lives(db, key)
+		if !ok {
+			return h.WriteInt64(0)
+		}
+
+		strE, ok := entry.AsStr()
+		if !ok {
+			return h.WriteWrongTypeError()
+		}
+
+		return h.WriteInt(len(strE.Value))
+	}
+
+	needed, ok := utils.Add64(offset, int64(len(value)))
+	if !ok || needed > int64(h.MaxBulkLength()) {
+		return h.WriteError(resp.ErrProtoInvalidBulkLength)
+	}
+
+	// Zero-padded fresh value for the "absent" cases.
+	fresh := func() []byte {
+		v := make([]byte, needed)
+		copy(v[offset:], value)
+		return v
+	}
+
+	now := time.Now()
+	entry, ok := lives(db, key)
+	if !ok || entry.IsExpired(now) {
+		db.Set(key, store.NewStringEntry(fresh(), nil))
+		return h.WriteInt64(needed)
+	}
+
+	strE, ok := entry.AsStr()
+	if !ok {
+		return h.WriteWrongTypeError()
+	}
+
+	// if len(strE.Value) < int(needed) {
+	// 	strE.Value = utils.Expand(strE.Value, int(needed))
+	// }
+	v := make([]byte, len(strE.Value))
+	copy(v, strE.Value)
+
+	if int64(len(v)) < needed {
+		// Grow the slice and zero-initialize the new space (like resize with 0)
+		newV := make([]byte, needed)
+		copy(newV, v)
+		v = newV
+	}
+
+	// Copy the new value into the offset
+	copy(v[offset:], value)
+	l := len(v)
+	strE.Value = v
+	return h.WriteInt(l)
 }
