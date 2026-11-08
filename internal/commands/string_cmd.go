@@ -278,8 +278,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 	if !ok {
 		allowed := cond.cond_allows(nil)
 		if allowed {
-			expires_at := ttl.expires_at()
-			db.Set(key, store.NewStringEntry(value, expires_at))
+			db.Set(key, store.NewStringEntry(value, ttl.expires_at()))
 			didSet = true
 		}
 	} else {

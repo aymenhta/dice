@@ -2,11 +2,13 @@ package commands
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
+	"github.com/samber/mo"
 )
 
 /*
@@ -91,6 +93,7 @@ func (cm *RespCommandManager) cmdHGet(db *store.Database, args [][]byte) error {
 
 	key := utils.BStr(args[0])
 	field := utils.BStr(args[1])
+	now := time.Now()
 	entry, ok := lives(db, key)
 	if !ok {
 		return cm.WriteNullString()
@@ -103,6 +106,11 @@ func (cm *RespCommandManager) cmdHGet(db *store.Database, args [][]byte) error {
 
 	hashField, fok := hashEntry.Value[field]
 	if !fok {
+		return cm.WriteNullString()
+	}
+
+	if hashField.IsExpired(now) {
+		delete(hashEntry.Value, field)
 		return cm.WriteNullString()
 	}
 
@@ -122,11 +130,18 @@ func (cm *RespCommandManager) cmdHGetAll(db *store.Database, args [][]byte) erro
 		return cm.WriteWrongTypeError()
 	}
 
+	now := time.Now()
 	out := make([][]byte, 0, len(hashE.Value)*2)
+	db.Lock()
 	for field, value := range hashE.Value {
+		if value.IsExpired(now) {
+			delete(hashE.Value, field)
+			continue
+		}
 		out = append(out, utils.StrB(field))
 		out = append(out, value.Value)
 	}
+	db.Unlock()
 	return cm.WriteArrayBytes(out)
 }
 
@@ -154,6 +169,7 @@ func (mc *RespCommandManager) cmdHDel(db *store.Database, args [][]byte) error {
 func (mc *RespCommandManager) cmdHExists(db *store.Database, args [][]byte) error {
 	key := utils.BStr(args[0])
 	field := utils.BStr(args[1])
+	now := time.Now()
 
 	entry, ok := lives(db, key)
 	if !ok {
@@ -165,9 +181,16 @@ func (mc *RespCommandManager) cmdHExists(db *store.Database, args [][]byte) erro
 		return mc.WriteWrongTypeError()
 	}
 
-	if _, ok := hashE.Value[field]; !ok {
+	hfield, ok := hashE.Value[field]
+	if !ok {
 		return mc.WriteInt64(0)
 	}
+
+	if hfield.IsExpired(now) {
+		delete(hashE.Value, field)
+		return mc.WriteInt64(0)
+	}
+
 	return mc.WriteInt64(1)
 }
 
@@ -192,6 +215,7 @@ func (mc *RespCommandManager) cmdHLen(db *store.Database, args [][]byte) error {
 func (mc *RespCommandManager) cmdHMGet(db *store.Database, args [][]byte) error {
 	key := utils.BStr(args[0])
 	fields := make([]string, 0, len(args)-1)
+	now := time.Now()
 	for _, arg := range args[1:] {
 		fields = append(fields, utils.BStr(utils.CopyBytes(arg)))
 	}
@@ -215,6 +239,9 @@ func (mc *RespCommandManager) cmdHMGet(db *store.Database, args [][]byte) error 
 	for _, f := range fields {
 		hf, ok := hashE.Value[f]
 		if !ok {
+			mc.WriteNullString()
+		} else if hf.IsExpired(now) {
+			delete(hashE.Value, f)
 			mc.WriteNullString()
 		} else {
 			mc.WriteBytes(hf.Value)
@@ -267,4 +294,181 @@ func (mc *RespCommandManager) cmdHIncrBy(db *store.Database, args [][]byte) erro
 	}
 
 	return mc.WriteInt64(n)
+}
+
+type HExpireCondition uint8
+
+const (
+	HEXPIRE_ALWAYS HExpireCondition = iota
+	HEXPIRE_NX
+	HEXPIRE_XX
+	HEXPIRE_GT
+	HEXPIRE_LT
+)
+
+func hexpireCondFromBytes(s string) (HExpireCondition, error) {
+	switch s {
+	case "nx":
+		return HEXPIRE_NX, nil
+	case "xx":
+		return HEXPIRE_XX, nil
+	case "gt":
+		return HEXPIRE_GT, nil
+	case "lt":
+		return HEXPIRE_LT, nil
+	default:
+		return 99, utils.ErrSyntaxError
+	}
+}
+
+func isHExpireAllowed(cond HExpireCondition, secs time.Time, old mo.Option[time.Time]) bool {
+	switch cond {
+	case HEXPIRE_ALWAYS:
+		return true
+	case HEXPIRE_NX:
+		return old.IsNone()
+	case HEXPIRE_XX:
+		return old.IsSome()
+	case HEXPIRE_GT:
+		v, ok := old.Get()
+		if !ok {
+			return false
+		}
+		return v.Before(secs)
+	case HEXPIRE_LT:
+		v, ok := old.Get()
+		if !ok {
+			return true
+		}
+		return v.After(secs)
+	default:
+		return true
+	}
+}
+
+type HExpireArgs struct {
+	key       string
+	seconds   uint64
+	condition HExpireCondition
+	numFields int
+	fields    []string
+}
+
+func parseHExpireArgs(args [][]byte) (*HExpireArgs, error) {
+	key := utils.BStr(args[0])
+	secs, err := utils.ParseUInt64(args[1])
+	if err != nil {
+		return nil, err
+	}
+
+	var fields []string
+
+	x := utils.BStr(utils.BytesToLower(args[2]))
+
+	if x == "fields" && len(args) >= 5 {
+		// parse without conditions
+		nf, err := utils.ParseInt32(args[3])
+		if err != nil {
+			return nil, err
+		}
+		for _, f := range args[4:] {
+			fields = append(fields, utils.BStr(f))
+		}
+		return &HExpireArgs{
+			key:       key,
+			seconds:   secs,
+			condition: HEXPIRE_ALWAYS,
+			numFields: int(nf),
+			fields:    fields,
+		}, nil
+	}
+
+	cond, err := hexpireCondFromBytes(x)
+	if err != nil {
+		return nil, err
+	}
+	if utils.BStr(utils.BytesToLower(args[3])) != "fields" {
+		return nil, fmt.Errorf("ERR unknown argument: %s", utils.BStr(args[2]))
+	}
+	nf, err := utils.ParseInt32(args[4])
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range args[5:] {
+		fields = append(fields, utils.BStr(f))
+	}
+
+	return &HExpireArgs{
+		key:       key,
+		seconds:   secs,
+		condition: cond,
+		numFields: int(nf),
+		fields:    fields,
+	}, nil
+}
+
+// HEXPIRE key seconds [NX | XX | GT | LT] FIELDS numfields field [field ...]
+func (mc *RespCommandManager) cmdHExpire(db *store.Database, rawArgs [][]byte) error {
+	args, err := parseHExpireArgs(rawArgs)
+	if err != nil {
+		return mc.WriteError(err)
+	}
+
+	if args.numFields < 0 {
+		return mc.WriteError(fmt.Errorf("Parameter `numFields` should be greater than 0"))
+	}
+
+	if len(args.fields) != args.numFields {
+		return mc.WriteError(fmt.Errorf("wrong number of arguments"))
+	}
+
+	now := time.Now()
+	entry, ok := db.Get(args.key)
+	if !ok {
+		x := make([]int64, 0, args.numFields)
+		for i := 0; i < args.numFields; i++ {
+			x = append(x, -2)
+		}
+		return mc.WriteArrayInt64(x)
+	}
+
+	if entry.IsExpired(now) {
+		return mc.WriteArrayInt64([]int64{-2})
+	}
+
+	hashE, ok := entry.AsHash()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	newTtl := now.Add(time.Duration(args.seconds) * time.Second)
+	out := make([]int64, 0, args.numFields)
+
+	db.Lock()
+	for _, field := range args.fields {
+		fv, ok := hashE.Value[field]
+		if !ok {
+			out = append(out, -2)
+			continue
+		}
+
+		if fv.IsExpired(now) {
+			delete(hashE.Value, field)
+			out = append(out, -2)
+			continue
+		}
+		oldTtl := mo.None[time.Time]()
+		if fv.Ttl != nil {
+			oldTtl = mo.Some(*fv.Ttl)
+		}
+		if !isHExpireAllowed(args.condition, newTtl, oldTtl) {
+			out = append(out, 0)
+			continue
+		}
+
+		fv.Ttl = utils.Pointer(newTtl)
+		out = append(out, 1)
+	}
+	db.Unlock()
+	return mc.WriteArrayInt64(out)
 }

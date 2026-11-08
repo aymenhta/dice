@@ -10,31 +10,31 @@ import (
 
 type Database struct {
 	sync.RWMutex
-	body map[string]*Entry
+	Body map[string]*Entry
 }
 
 func NewDB[V any]() *Database {
 	return &Database{
-		body: make(map[string]*Entry),
+		Body: make(map[string]*Entry),
 	}
 }
 
 func (db *Database) Set(key string, value *Entry) {
 	db.Lock()
-	db.body[key] = value
+	db.Body[key] = value
 	db.Unlock()
 }
 
 func (db *Database) Get(key string) (*Entry, bool) {
 	db.RLock()
-	v, ok := db.body[key]
+	v, ok := db.Body[key]
 	db.RUnlock()
 	return v, ok
 }
 
 func (db *Database) Remove(key string) {
 	db.Lock()
-	delete(db.body, key)
+	delete(db.Body, key)
 	db.Unlock()
 }
 
@@ -43,13 +43,13 @@ func (db *Database) RemoveHashFields(key string, fields []string, now time.Time)
 	defer db.Unlock()
 	removed := 0
 
-	entry, ok := db.body[key]
+	entry, ok := db.Body[key]
 	if !ok {
 		return 0, nil
 	}
 
 	if entry.IsExpired(now) {
-		delete(db.body, key)
+		delete(db.Body, key)
 		return 0, nil
 	}
 
@@ -67,7 +67,7 @@ func (db *Database) RemoveHashFields(key string, fields []string, now time.Time)
 	}
 
 	if len(hashE.Value) == 0 {
-		delete(db.body, key)
+		delete(db.Body, key)
 	}
 
 	return removed, nil
@@ -77,11 +77,11 @@ func (db *Database) IncrByHashFields(key string, field string, delta int64, now 
 	db.Lock()
 	defer db.Unlock()
 
-	entry, ok := db.body[key]
+	entry, ok := db.Body[key]
 	if !ok || entry.IsExpired(now) {
 		h := make(map[string]*HashField)
 		h[field] = NewHashField(utils.Int64ToBytes(delta))
-		db.body[key] = NewHashEntry(h, nil)
+		db.Body[key] = NewHashEntry(h, nil)
 		return delta, nil
 	}
 
@@ -92,7 +92,7 @@ func (db *Database) IncrByHashFields(key string, field string, delta int64, now 
 
 	var current int64
 	hf, ok := hashE.Value[field]
-	if !ok {
+	if !ok || hf.IsExpired(now) {
 		current = 0
 	} else {
 		hfv, err := utils.ParseInt64(hf.Value)
@@ -115,9 +115,9 @@ func (db *Database) BatchRemove(keys []string) int64 {
 	removed := int64(0)
 	db.Lock()
 	for _, key := range keys {
-		_, ok := db.body[key]
+		_, ok := db.Body[key]
 		if ok {
-			delete(db.body, key)
+			delete(db.Body, key)
 			removed += 1
 		}
 	}
@@ -129,7 +129,7 @@ func (db *Database) BatchRemove(keys []string) int64 {
 func (db *Database) MSet(pairs map[string]*Entry) {
 	db.Lock()
 	for k, v := range pairs {
-		db.body[k] = v
+		db.Body[k] = v
 	}
 	db.Unlock()
 }
@@ -139,13 +139,13 @@ func (db *Database) GetAndRemove(key string) ([]byte, bool, bool) {
 	db.Lock()
 	defer db.Unlock()
 
-	entry, ok := db.body[key]
+	entry, ok := db.Body[key]
 	if !ok {
 		return nil, false, false
 	}
 
 	if entry.IsExpired(now) {
-		delete(db.body, key)
+		delete(db.Body, key)
 		return nil, false, false
 	}
 
@@ -155,26 +155,26 @@ func (db *Database) GetAndRemove(key string) ([]byte, bool, bool) {
 	}
 
 	value := copyBytes(typedEntry.Value)
-	delete(db.body, key)
+	delete(db.Body, key)
 	return value, true, true
 }
 
 func (db *Database) Size() int {
 	db.RLock()
 	defer db.RUnlock()
-	return len(db.body)
+	return len(db.Body)
 }
 
 func (db *Database) Clear() {
 	db.Lock()
-	clear(db.body)
+	clear(db.Body)
 	defer db.Unlock()
 }
 
 func (db *Database) debugMap() {
 	println("====================================================")
 	fmt.Println("key -> value")
-	for key, value := range db.body {
+	for key, value := range db.Body {
 		fmt.Printf("%s -> %+v\n", key, value)
 	}
 	println("====================================================")

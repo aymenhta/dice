@@ -709,6 +709,18 @@ func (x *RespReadWriter) WriteArrayBytes(v [][]byte) error {
 	return nil
 }
 
+func (x *RespReadWriter) WriteArrayInt64(v []int64) error {
+	if err := x.WriteArrayHeader(len(v)); err != nil {
+		return err
+	}
+	for _, arg := range v {
+		if err := x.WriteInt64(arg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // WriteArrayString is a convenience method to write an array of Bulk strings.
 func (x *RespReadWriter) WriteArrayString(v []string) error {
 	if err := x.WriteArrayHeader(len(v)); err != nil {

@@ -115,6 +115,11 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return cm.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return cm.cmdHIncrBy(db, args)
+	case "hexpire":
+		if len(args) < 5 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdHExpire(db, args)
 
 	// general commands
 	case "ping":

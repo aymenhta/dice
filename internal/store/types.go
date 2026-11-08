@@ -39,6 +39,14 @@ func NewHashFieldWithTTL(value []byte, ttl *time.Time) *HashField {
 	return &HashField{Value: value, Ttl: ttl}
 }
 
+func (e *HashField) IsExpired(now time.Time) bool {
+	if e.Ttl == nil {
+		return false
+	}
+
+	return now.Equal(*e.Ttl) || now.After(*e.Ttl)
+}
+
 type Hash struct {
 	Value map[string]*HashField
 }
