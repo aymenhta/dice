@@ -248,3 +248,23 @@ func (mc *RespCommandManager) cmdHKeysOrVals(db *store.Database, args [][]byte, 
 
 	return mc.Werr()
 }
+
+func (mc *RespCommandManager) cmdHIncrBy(db *store.Database, args [][]byte) error {
+	key := utils.BStr(utils.CopyBytes(args[0]))
+	field := utils.BStr(utils.CopyBytes(args[1]))
+	delta, err := utils.ParseInt64(args[2])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+	n, err := db.IncrByHashFields(key, field, delta, time.Now())
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrWrongTypeErr):
+			return mc.WriteWrongTypeError()
+		default:
+			return mc.WriteError(err)
+		}
+	}
+
+	return mc.WriteInt64(n)
+}

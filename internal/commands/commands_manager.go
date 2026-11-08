@@ -110,11 +110,11 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return cm.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return cm.cmdHKeysOrVals(db, args, false)
-	// case "hincrby":
-	// 	if len(args) != 3 {
-	// 		return cm.WriteError(utils.WrongArgsNum(cmd))
-	// 	}
-	// 	return cm.cmdHIncrBy(db, args)
+	case "hincrby":
+		if len(args) != 3 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdHIncrBy(db, args)
 
 	// general commands
 	case "ping":

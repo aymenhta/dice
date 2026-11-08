@@ -73,6 +73,44 @@ func (db *Database) RemoveHashFields(key string, fields []string, now time.Time)
 	return removed, nil
 }
 
+func (db *Database) IncrByHashFields(key string, field string, delta int64, now time.Time) (int64, error) {
+	db.Lock()
+	defer db.Unlock()
+
+	entry, ok := db.body[key]
+	if !ok || entry.IsExpired(now) {
+		h := make(map[string]*HashField)
+		h[field] = NewHashField(utils.Int64ToBytes(delta))
+		db.body[key] = NewHashEntry(h, nil)
+		return delta, nil
+	}
+
+	hashE, ok := entry.AsHash()
+	if !ok {
+		return -1, utils.ErrWrongTypeErr
+	}
+
+	var current int64
+	hf, ok := hashE.Value[field]
+	if !ok {
+		current = 0
+	} else {
+		hfv, err := utils.ParseInt64(hf.Value)
+		if err != nil {
+			return -1, fmt.Errorf("hash value is not an integer")
+		}
+		current = hfv
+	}
+
+	next, ok := utils.Add64(current, delta)
+	if !ok {
+		return -1, fmt.Errorf("increment or decrement would overflow")
+	}
+
+	hf.Value = utils.Int64ToBytes(next)
+	return next, nil
+}
+
 func (db *Database) BatchRemove(keys []string) int64 {
 	removed := int64(0)
 	db.Lock()

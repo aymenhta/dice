@@ -18,6 +18,13 @@ func NewStringEntry(value []byte, ttl *time.Time) *Entry {
 	}
 }
 
+func NewHashEntry(value map[string]*HashField, ttl *time.Time) *Entry {
+	return &Entry{
+		Value: &Hash{Value: value},
+		Ttl:   ttl,
+	}
+}
+
 func (e *Entry) IsExpired(now time.Time) bool {
 	if e.Ttl == nil {
 		return false
