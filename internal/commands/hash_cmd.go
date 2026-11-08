@@ -223,3 +223,28 @@ func (mc *RespCommandManager) cmdHMGet(db *store.Database, args [][]byte) error 
 
 	return mc.Werr()
 }
+
+func (mc *RespCommandManager) cmdHKeysOrVals(db *store.Database, args [][]byte, keys bool) error {
+	entry, ok := lives(db, utils.BStr(args[0]))
+	if !ok {
+		return mc.WriteArray([]any{})
+	}
+
+	hashE, ok := entry.AsHash()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	mc.WriteArrayHeader(len(hashE.Value))
+	if keys {
+		for k, _ := range hashE.Value {
+			mc.WriteString(k)
+		}
+	} else {
+		for _, v := range hashE.Value {
+			mc.WriteBytes(v.Value)
+		}
+	}
+
+	return mc.Werr()
+}
