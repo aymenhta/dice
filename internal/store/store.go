@@ -53,7 +53,7 @@ func (e *Entry) AsHash() (*Hash, bool) {
 }
 
 type Store struct {
-	DB [DB_NUM]*Database[string]
+	DB [DB_NUM]*Database
 }
 
 func NewStore() *Store {

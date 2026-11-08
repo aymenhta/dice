@@ -155,7 +155,7 @@ func (x *SetTTL) expires_at() *time.Time {
 	return nil
 }
 
-func (cm *RespCommandManager) cmdSet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 	if len(args) < 2 {
 		return cm.WriteError(utils.WrongArgsNum("set"))
 	}
@@ -327,7 +327,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database[string], args [][]byte) 
 	}
 }
 
-func (cm *RespCommandManager) cmdGet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdGet(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
 		return cm.WriteError(utils.WrongArgsNum("get"))
 	}
@@ -346,7 +346,7 @@ func (cm *RespCommandManager) cmdGet(db *store.Database[string], args [][]byte) 
 	return cm.WriteBytes(typedEntry.Value)
 }
 
-func (cm *RespCommandManager) incr_decrByDelta(db *store.Database[string], args [][]byte, delta int64) error {
+func (cm *RespCommandManager) incr_decrByDelta(db *store.Database, args [][]byte, delta int64) error {
 
 	key := utils.BStr(utils.CopyBytes(args[0]))
 	entry, ok := db.Get(key)
@@ -380,7 +380,7 @@ func (cm *RespCommandManager) incr_decrByDelta(db *store.Database[string], args 
 	return cm.WriteInt64(next)
 }
 
-func (cm *RespCommandManager) cmdIncr(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdIncr(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
 		return cm.WriteError(utils.WrongArgsNum("incr"))
 	}
@@ -388,7 +388,7 @@ func (cm *RespCommandManager) cmdIncr(db *store.Database[string], args [][]byte)
 	return cm.incr_decrByDelta(db, args, 1)
 }
 
-func (cm *RespCommandManager) cmdDecr(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdDecr(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
 		return cm.WriteError(utils.WrongArgsNum("decr"))
 	}
@@ -396,7 +396,7 @@ func (cm *RespCommandManager) cmdDecr(db *store.Database[string], args [][]byte)
 	return cm.incr_decrByDelta(db, args, -1)
 }
 
-func (cm *RespCommandManager) cmdIncrBy(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdIncrBy(db *store.Database, args [][]byte) error {
 	if len(args) != 2 {
 		return cm.WriteError(utils.WrongArgsNum("incrby"))
 	}
@@ -408,7 +408,7 @@ func (cm *RespCommandManager) cmdIncrBy(db *store.Database[string], args [][]byt
 
 	return cm.incr_decrByDelta(db, args, delta)
 }
-func (cm *RespCommandManager) cmdDecrBy(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdDecrBy(db *store.Database, args [][]byte) error {
 	if len(args) != 2 {
 		return cm.WriteError(utils.WrongArgsNum("decrby"))
 	}
@@ -421,7 +421,7 @@ func (cm *RespCommandManager) cmdDecrBy(db *store.Database[string], args [][]byt
 	return cm.incr_decrByDelta(db, args, -delta)
 }
 
-func (cm *RespCommandManager) cmdMGet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdMGet(db *store.Database, args [][]byte) error {
 	if len(args) == 0 {
 		return cm.WriteError(utils.WrongArgsNum("mget"))
 	}
@@ -452,7 +452,7 @@ func (cm *RespCommandManager) cmdMGet(db *store.Database[string], args [][]byte)
 // Each pair is written atomically, but the batch as a whole is NOT atomic:
 // another connection can observe some keys set and others not yet.
 // Like SET, MSET discards any existing TTL.
-func (cm *RespCommandManager) cmdMSet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdMSet(db *store.Database, args [][]byte) error {
 	if len(args) != 0 && len(args)%2 != 0 {
 		return cm.WriteError(utils.WrongArgsNum("mset"))
 	}
@@ -469,7 +469,7 @@ func (cm *RespCommandManager) cmdMSet(db *store.Database[string], args [][]byte)
 	return cm.WriteSimpleString("OK")
 }
 
-func (cm *RespCommandManager) cmdGetDel(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdGetDel(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
 		return cm.WriteError(utils.WrongArgsNum("getdel"))
 	}
@@ -488,7 +488,7 @@ func (cm *RespCommandManager) cmdGetDel(db *store.Database[string], args [][]byt
 }
 
 // DELEX key [IFEQ v | IFNE v | IFDEQ d | IFDNE d] -> 1 if deleted, else 0.
-func (cm *RespCommandManager) cmdDelEx(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdDelEx(db *store.Database, args [][]byte) error {
 	if len(args) == 0 {
 		return cm.WriteError(utils.WrongArgsNum("delex"))
 	}
@@ -553,7 +553,7 @@ func (cm *RespCommandManager) cmdDelEx(db *store.Database[string], args [][]byte
 }
 
 // GETEX key [EX s | PX ms | EXAT ts | PXAT ms-ts | PERSIST]
-func (cm *RespCommandManager) cmdGetEx(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error {
 	if len(args) == 0 {
 		return cm.WriteError(utils.WrongArgsNum("getex"))
 	}
@@ -627,7 +627,7 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database[string], args [][]byte
 	return cm.WriteBytes(strEntry.Value)
 }
 
-func (cm *RespCommandManager) cmdStrLen(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdStrLen(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
 		return cm.WriteError(utils.WrongArgsNum("strlen"))
 	}
@@ -646,7 +646,7 @@ func (cm *RespCommandManager) cmdStrLen(db *store.Database[string], args [][]byt
 	return cm.WriteInt(len(strEntry.Value))
 }
 
-func (cm *RespCommandManager) cmdAppend(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdAppend(db *store.Database, args [][]byte) error {
 	if len(args) != 2 {
 		return cm.WriteError(utils.WrongArgsNum("append"))
 	}
@@ -681,7 +681,7 @@ func (cm *RespCommandManager) cmdAppend(db *store.Database[string], args [][]byt
 	return cm.WriteInt(nl)
 }
 
-func (cm *RespCommandManager) cmdDigest(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdDigest(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
 		return cm.WriteError(utils.WrongArgsNum("digest"))
 	}
@@ -701,7 +701,7 @@ func (cm *RespCommandManager) cmdDigest(db *store.Database[string], args [][]byt
 	return cm.WriteString(digest)
 }
 
-func (cm *RespCommandManager) cmdGetRange(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdGetRange(db *store.Database, args [][]byte) error {
 	key := utils.BStr(args[0])
 	start, err := utils.ParseInt64(args[1])
 	if err != nil {
@@ -730,7 +730,7 @@ func (cm *RespCommandManager) cmdGetRange(db *store.Database[string], args [][]b
 	return cm.WriteBytes(strEntry.Value[s : e+1])
 }
 
-func (cm *RespCommandManager) cmdSetRange(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdSetRange(db *store.Database, args [][]byte) error {
 	key := utils.BStr(utils.CopyBytes(args[0]))
 	offset, err := utils.ParseInt64(args[1])
 	if err != nil {

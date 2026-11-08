@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"slices"
 	"time"
 
@@ -47,7 +48,7 @@ func buildHash(pairs []HsetPair) (map[string]*store.HashField, int64) {
 
 // HSET key field value [field value ...] -> the number of fields that were  ADDED
 // (updating an existing field doesn't count).
-func (cm *RespCommandManager) cmdHSet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdHSet(db *store.Database, args [][]byte) error {
 	if !(len(args) >= 3 && len(args)%2 == 1) {
 		return cm.WriteError(utils.WrongArgsNum("hset"))
 	}
@@ -83,7 +84,7 @@ func (cm *RespCommandManager) cmdHSet(db *store.Database[string], args [][]byte)
 }
 
 // HGET key field -> the field's value, or nil if the key or field is missing
-func (cm *RespCommandManager) cmdHGet(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdHGet(db *store.Database, args [][]byte) error {
 	if len(args) != 2 {
 		return cm.WriteError(utils.WrongArgsNum("hget"))
 	}
@@ -110,7 +111,7 @@ func (cm *RespCommandManager) cmdHGet(db *store.Database[string], args [][]byte)
 
 // HGETALL key -> a flat array of field, value, field, value, ...
 // Empty for a missing key. Field order is unspecified.
-func (cm *RespCommandManager) cmdHGetAll(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdHGetAll(db *store.Database, args [][]byte) error {
 	entry, ok := lives(db, utils.BStr(args[0]))
 	if !ok {
 		return cm.WriteArray(nil)
@@ -127,4 +128,25 @@ func (cm *RespCommandManager) cmdHGetAll(db *store.Database[string], args [][]by
 		out = append(out, value.Value)
 	}
 	return cm.WriteArrayBytes(out)
+}
+
+// HDEL key field [field ...] -> how many of those fields were removed.
+func (mc *RespCommandManager) cmdHDel(db *store.Database, args [][]byte) error {
+	key := utils.BStr(args[0])
+	fields := make([]string, len(args)-1)
+	for _, arg := range args[1:] {
+		fields = append(fields, utils.BStr(arg))
+	}
+
+	removed, err := db.RemoveHashFields(key, fields, time.Now())
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrWrongTypeErr):
+			return mc.WriteWrongTypeError()
+		default:
+			return mc.WriteError(err)
+		}
+	}
+
+	return mc.WriteInt(removed)
 }

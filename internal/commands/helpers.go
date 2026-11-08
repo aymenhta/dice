@@ -8,7 +8,7 @@ import (
 	"aymenhta.com/dice/internal/utils"
 )
 
-func lives(db *store.Database[string], key string) (*store.Entry, bool) {
+func lives(db *store.Database, key string) (*store.Entry, bool) {
 	entry, exists := db.Get(key)
 	if !exists {
 		return nil, false

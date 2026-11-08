@@ -4,39 +4,76 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"aymenhta.com/dice/internal/utils"
 )
 
-type Database[K comparable] struct {
+type Database struct {
 	sync.RWMutex
-	body map[K]*Entry
+	body map[string]*Entry
 }
 
-func NewDB[V any]() *Database[string] {
-	return &Database[string]{
+func NewDB[V any]() *Database {
+	return &Database{
 		body: make(map[string]*Entry),
 	}
 }
 
-func (db *Database[K]) Set(key K, value *Entry) {
+func (db *Database) Set(key string, value *Entry) {
 	db.Lock()
 	db.body[key] = value
 	db.Unlock()
 }
 
-func (db *Database[K]) Get(key K) (*Entry, bool) {
+func (db *Database) Get(key string) (*Entry, bool) {
 	db.RLock()
 	v, ok := db.body[key]
 	db.RUnlock()
 	return v, ok
 }
 
-func (db *Database[K]) Remove(key K) {
+func (db *Database) Remove(key string) {
 	db.Lock()
 	delete(db.body, key)
 	db.Unlock()
 }
 
-func (db *Database[K]) BatchRemove(keys []K) int64 {
+func (db *Database) RemoveHashFields(key string, fields []string, now time.Time) (int, error) {
+	db.Lock()
+	defer db.Unlock()
+	removed := 0
+
+	entry, ok := db.body[key]
+	if !ok {
+		return 0, nil
+	}
+
+	if entry.IsExpired(now) {
+		delete(db.body, key)
+		return 0, nil
+	}
+
+	hashE, ok := entry.AsHash()
+	if !ok {
+		return 0, utils.ErrWrongTypeErr
+	}
+
+	for _, field := range fields {
+		_, ok := hashE.Value[field]
+		if ok {
+			delete(hashE.Value, field)
+			removed += 1
+		}
+	}
+
+	if len(hashE.Value) == 0 {
+		delete(db.body, key)
+	}
+
+	return removed, nil
+}
+
+func (db *Database) BatchRemove(keys []string) int64 {
 	removed := int64(0)
 	db.Lock()
 	for _, key := range keys {
@@ -51,7 +88,7 @@ func (db *Database[K]) BatchRemove(keys []K) int64 {
 	return removed
 }
 
-func (db *Database[K]) MSet(pairs map[K]*Entry) {
+func (db *Database) MSet(pairs map[string]*Entry) {
 	db.Lock()
 	for k, v := range pairs {
 		db.body[k] = v
@@ -59,7 +96,7 @@ func (db *Database[K]) MSet(pairs map[K]*Entry) {
 	db.Unlock()
 }
 
-func (db *Database[K]) GetAndRemove(key K) ([]byte, bool, bool) {
+func (db *Database) GetAndRemove(key string) ([]byte, bool, bool) {
 	now := time.Now()
 	db.Lock()
 	defer db.Unlock()
@@ -84,19 +121,19 @@ func (db *Database[K]) GetAndRemove(key K) ([]byte, bool, bool) {
 	return value, true, true
 }
 
-func (db *Database[K]) Size() int {
+func (db *Database) Size() int {
 	db.RLock()
 	defer db.RUnlock()
 	return len(db.body)
 }
 
-func (db *Database[K]) Clear() {
+func (db *Database) Clear() {
 	db.Lock()
 	clear(db.body)
 	defer db.Unlock()
 }
 
-func (db *Database[K]) debugMap() {
+func (db *Database) debugMap() {
 	println("====================================================")
 	fmt.Println("key -> value")
 	for key, value := range db.body {

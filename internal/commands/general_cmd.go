@@ -27,7 +27,7 @@ func (cm *RespCommandManager) cmdEcho(args [][]byte) error {
 	return cm.WriteBytes(args[0])
 }
 
-func (cm *RespCommandManager) cmdExists(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdExists(db *store.Database, args [][]byte) error {
 	if len(args) == 0 {
 		return cm.WriteError(utils.WrongArgsNum("exists"))
 	}
@@ -43,7 +43,7 @@ func (cm *RespCommandManager) cmdExists(db *store.Database[string], args [][]byt
 	return cm.WriteInt64(count)
 }
 
-func (cm *RespCommandManager) cmdDel(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdDel(db *store.Database, args [][]byte) error {
 	if len(args) == 0 {
 		return cm.WriteError(utils.WrongArgsNum("del"))
 	}
@@ -59,7 +59,7 @@ func (cm *RespCommandManager) cmdDel(db *store.Database[string], args [][]byte) 
 	return cm.WriteInt64(removed)
 }
 
-func (cm *RespCommandManager) cmdExpire(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdExpire(db *store.Database, args [][]byte) error {
 	if len(args) < 2 || len(args) > 3 {
 		return cm.WriteError(utils.WrongArgsNum("expire"))
 	}
@@ -97,7 +97,7 @@ func (cm *RespCommandManager) cmdExpire(db *store.Database[string], args [][]byt
 	return cm.WriteInt(1)
 }
 
-func (cm *RespCommandManager) cmdTtl(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdTtl(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
 		return cm.WriteError(utils.WrongArgsNum("ttl"))
 	}
@@ -117,7 +117,7 @@ func (cm *RespCommandManager) cmdTtl(db *store.Database[string], args [][]byte) 
 	return cm.WriteInt64(int64(remaining))
 }
 
-func (cm *RespCommandManager) cmdType(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdType(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
 		return cm.WriteError(utils.WrongArgsNum("type"))
 	}
@@ -131,11 +131,11 @@ func (cm *RespCommandManager) cmdType(db *store.Database[string], args [][]byte)
 	return cm.WriteSimpleString(entry.Value.TypeName())
 }
 
-func (cm *RespCommandManager) cmdDbSize(db *store.Database[string]) error {
+func (cm *RespCommandManager) cmdDbSize(db *store.Database) error {
 	return cm.WriteInt(db.Size())
 }
 
-func (cm *RespCommandManager) cmdFlushDb(db *store.Database[string]) error {
+func (cm *RespCommandManager) cmdFlushDb(db *store.Database) error {
 	db.Clear()
 	return cm.WriteSimpleString("OK")
 }
@@ -147,7 +147,7 @@ func (cm *RespCommandManager) cmdFlushAll(st *store.Store) error {
 	return cm.WriteSimpleString("OK")
 }
 
-func (cm *RespCommandManager) cmdSelect(db *store.Database[string], args [][]byte) error {
+func (cm *RespCommandManager) cmdSelect(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
 		return cm.WriteError(utils.WrongArgsNum("select"))
 	}

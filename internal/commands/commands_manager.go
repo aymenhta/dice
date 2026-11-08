@@ -80,6 +80,11 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return cm.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return cm.cmdHGetAll(db, args)
+	case "hdel":
+		if len(args) < 2 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdHDel(db, args)
 
 	// general commands
 	case "ping":
