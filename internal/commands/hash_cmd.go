@@ -150,3 +150,76 @@ func (mc *RespCommandManager) cmdHDel(db *store.Database, args [][]byte) error {
 
 	return mc.WriteInt(removed)
 }
+
+func (mc *RespCommandManager) cmdHExists(db *store.Database, args [][]byte) error {
+	key := utils.BStr(args[0])
+	field := utils.BStr(args[1])
+
+	entry, ok := lives(db, key)
+	if !ok {
+		return mc.WriteInt64(0)
+	}
+
+	hashE, ok := entry.AsHash()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	if _, ok := hashE.Value[field]; !ok {
+		return mc.WriteInt64(0)
+	}
+	return mc.WriteInt64(1)
+}
+
+func (mc *RespCommandManager) cmdHLen(db *store.Database, args [][]byte) error {
+	key := utils.BStr(args[0])
+
+	entry, ok := lives(db, key)
+	if !ok {
+		return mc.WriteInt64(0)
+	}
+
+	hashE, ok := entry.AsHash()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	return mc.WriteInt(len(hashE.Value))
+}
+
+// HMGET key field [field ...] -> one entry per requested field, in the
+// requested order (a repeated field is repeated), nil where missing.
+func (mc *RespCommandManager) cmdHMGet(db *store.Database, args [][]byte) error {
+	key := utils.BStr(args[0])
+	fields := make([]string, len(args)-1)
+	for _, arg := range args {
+		fields = append(fields, utils.BStr(arg))
+	}
+
+	entry, ok := lives(db, key)
+	if !ok {
+		mc.WriteArrayHeader(len(fields))
+		for range fields {
+			mc.WriteNullString()
+		}
+
+		return mc.Werr()
+	}
+
+	hashE, ok := entry.AsHash()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	mc.WriteArrayHeader(len(fields))
+	for _, f := range fields {
+		hf, ok := hashE.Value[f]
+		if !ok {
+			mc.WriteNullString()
+		} else {
+			mc.WriteBytes(hf.Value)
+		}
+	}
+
+	return mc.Werr()
+}

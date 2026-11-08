@@ -246,7 +246,7 @@ func (x *RespReadWriter) readArgs() ([][]byte, error) {
 				continue
 			case 2: // newline (\n)
 				if insq || indq {
-					return nil, ErrProtoUnbalancedQuotes
+					return nil, utils.ErrProtoUnbalancedQuotes
 				}
 				argsRefs = utils.Expand(argsRefs, argc)
 				for i := 0; i < argc; i++ {
@@ -267,7 +267,7 @@ func (x *RespReadWriter) readArgs() ([][]byte, error) {
 
 			if indq {
 				if c == '\n' {
-					return nil, ErrProtoUnbalancedQuotes
+					return nil, utils.ErrProtoUnbalancedQuotes
 				}
 				if c == '\\' {
 					peek, err := x.rd.Peek(3)
@@ -316,7 +316,7 @@ func (x *RespReadWriter) readArgs() ([][]byte, error) {
 						return nil, err
 					}
 					if len(peek) > 0 && readArgsSpaceChars[peek[0]] == 0 {
-						return nil, ErrProtoUnbalancedQuotes
+						return nil, utils.ErrProtoUnbalancedQuotes
 					}
 					indq = false
 					break
@@ -329,7 +329,7 @@ func (x *RespReadWriter) readArgs() ([][]byte, error) {
 			}
 			if insq {
 				if c == '\n' {
-					return nil, ErrProtoUnbalancedQuotes
+					return nil, utils.ErrProtoUnbalancedQuotes
 				}
 				if c == '\\' {
 					peek, err := x.rd.Peek(1)
@@ -352,7 +352,7 @@ func (x *RespReadWriter) readArgs() ([][]byte, error) {
 						return nil, err
 					}
 					if len(peek) > 0 && readArgsSpaceChars[peek[0]] == 0 {
-						return nil, ErrProtoUnbalancedQuotes
+						return nil, utils.ErrProtoUnbalancedQuotes
 					}
 					insq = false
 					break
@@ -382,11 +382,11 @@ func (x *RespReadWriter) readArgs() ([][]byte, error) {
 		}
 		size := len(argsBuffer) - barrier
 		if size > x.maxBulkLength {
-			return nil, ErrProtoInvalidBulkLength
+			return nil, utils.ErrProtoInvalidBulkLength
 		}
 		argc++
 		if argc > x.maxMultiBulkLength {
-			return nil, ErrProtoInvalidMultiBulkLength
+			return nil, utils.ErrProtoInvalidMultiBulkLength
 		}
 		argsBounds = append(argsBounds, barrier, size)
 		barrier = len(argsBuffer)
@@ -416,7 +416,7 @@ func (x *RespReadWriter) next() ([][]byte, error) {
 	n32, err := utils.ParseInt32(line[1:])
 	n := int(n32)
 	if err != nil || n > x.maxMultiBulkLength {
-		return nil, ErrProtoInvalidMultiBulkLength
+		return nil, utils.ErrProtoInvalidMultiBulkLength
 	}
 	if n <= 0 {
 		return nil, nil
@@ -441,12 +441,12 @@ func (x *RespReadWriter) next() ([][]byte, error) {
 			return nil, err
 		}
 		if len(line) == 0 || line[0] != types.RespBulkStr {
-			return nil, ErrProtoExpectedString
+			return nil, utils.ErrProtoExpectedString
 		}
 		l32, err := utils.ParseUInt32(line[1:])
 		l := int(l32)
 		if err != nil || l < 0 || l > x.maxBulkLength {
-			return nil, ErrProtoInvalidBulkLength
+			return nil, utils.ErrProtoInvalidBulkLength
 		}
 		if p+l+2 > x.maxBufferSize {
 			return nil, bufio.ErrBufferFull
@@ -569,7 +569,7 @@ func (x *RespReadWriter) WriteError(e error) error {
 func (x *RespReadWriter) WriteWrongTypeError() error {
 	return x.writeWithPrefix(
 		static.RespPrefixedWrongTypeErrBytes,
-		utils.StrB("Operation against a key holding the wrong kind of value"),
+		utils.StrB(utils.ErrWrongTypeErr.Error()),
 		nil,
 	)
 }

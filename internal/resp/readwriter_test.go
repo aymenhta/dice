@@ -301,7 +301,7 @@ func FuzzClientHandlerParser(f *testing.F) {
 		bufRd.Reset(bytesRd)
 		_, err := handler.Next()
 		switch err {
-		case nil, io.EOF, io.ErrUnexpectedEOF, ErrProtoInvalidMultiBulkLength, ErrProtoInvalidBulkLength, ErrProtoUnbalancedQuotes, ErrProtoExpectedString, bufio.ErrBufferFull:
+		case nil, io.EOF, io.ErrUnexpectedEOF, utils.ErrProtoInvalidMultiBulkLength, utils.ErrProtoInvalidBulkLength, utils.ErrProtoUnbalancedQuotes, utils.ErrProtoExpectedString, bufio.ErrBufferFull:
 		default:
 			panic(string(data) + " " + err.Error())
 		}

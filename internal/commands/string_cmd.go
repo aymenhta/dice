@@ -6,7 +6,6 @@ import (
 	"slices"
 	"time"
 
-	"aymenhta.com/dice/internal/resp"
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
 )
@@ -180,52 +179,52 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 		option := utils.BStr(utils.BytesToLower(args[i]))
 		if option == "xx" {
 			if cond.kind != SET_ALWAYS && cond.kind != SET_XX {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_XX
 			i = i + 1
 		} else if option == "nx" {
 			if cond.kind != SET_ALWAYS && cond.kind != SET_NX {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_NX
 			i = i + 1
 		} else if option == "ifeq" {
 			if cond.kind != SET_ALWAYS {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			if i+1 >= len(args) {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFEQ
 			cond.cmp_value = utils.CopyBytes(args[i+1])
 			i = i + 2
 		} else if option == "ifne" {
 			if cond.kind != SET_ALWAYS {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			if i+1 >= len(args) {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFNE
 			cond.cmp_value = utils.CopyBytes(args[i+1])
 			i = i + 2
 		} else if option == "ifdeq" {
 			if cond.kind != SET_ALWAYS {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			if i+1 >= len(args) {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFDEQ
 			cond.cmp_value = utils.CopyBytes(args[i+1])
 			i = i + 2
 		} else if option == "ifdne" {
 			if cond.kind != SET_ALWAYS {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			if i+1 >= len(args) {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFDNE
 			cond.cmp_value = utils.CopyBytes(args[i+1])
@@ -235,7 +234,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 			i = i + 1
 		} else if option == "keepttl" {
 			if ttl.kind != nil && *ttl.kind != SET_TTL_KEEPTTL {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			ttl.kind = utils.Pointer(SET_TTL_KEEPTTL)
 			ttl.action = SET_TTL_KEEP
@@ -244,10 +243,10 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 			kind := ttl_value_option(option)
 			if kind != nil {
 				if i+1 >= len(args) {
-					return cm.WriteError(resp.ErrSyntaxError)
+					return cm.WriteError(utils.ErrSyntaxError)
 				}
 				if ttl.kind != nil && *ttl.kind != *kind {
-					return cm.WriteError(resp.ErrSyntaxError)
+					return cm.WriteError(utils.ErrSyntaxError)
 				}
 				n, err := utils.ParseInt64(args[i+1])
 				if err != nil {
@@ -263,7 +262,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 				ttl.new_ttl = new_ttl
 				i = i + 2
 			} else {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 		}
 	}
@@ -373,7 +372,7 @@ func (cm *RespCommandManager) incr_decrByDelta(db *store.Database, args [][]byte
 
 	next, ok := utils.Add64(current, delta)
 	if !ok {
-		return cm.WriteError(resp.ErrIncrDecrOverflow)
+		return cm.WriteError(utils.ErrIncrDecrOverflow)
 	}
 
 	typedEntry.Value = utils.Int64ToBytes(next)
@@ -503,7 +502,7 @@ func (cm *RespCommandManager) cmdDelEx(db *store.Database, args [][]byte) error 
 		operand := args[2]
 
 		if option != "ifeq" && option != "ifne" && option != "ifdeq" && option != "ifdne" {
-			return cm.WriteError(resp.ErrSyntaxError)
+			return cm.WriteError(utils.ErrSyntaxError)
 		}
 
 		switch option {
@@ -520,11 +519,11 @@ func (cm *RespCommandManager) cmdDelEx(db *store.Database, args [][]byte) error 
 			condition.kind = SET_IFDNE
 			break
 		default:
-			return cm.WriteError(resp.ErrSyntaxError)
+			return cm.WriteError(utils.ErrSyntaxError)
 		}
 		condition.cmp_value = operand
 	} else {
-		return cm.WriteError(resp.ErrSyntaxError)
+		return cm.WriteError(utils.ErrSyntaxError)
 	}
 
 	now := time.Now()
@@ -566,7 +565,7 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error 
 		opt := utils.BStr(utils.BytesToLower(args[i]))
 		if opt == "persist" {
 			if ttl.kind != nil && *ttl.kind != SET_TTL_PERSIST {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			ttl.kind = utils.Pointer(SET_TTL_PERSIST)
 			ttl.action = SET_TTL_CLEAR
@@ -575,11 +574,11 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error 
 			k := ttl_value_option(opt)
 			if k != nil {
 				if i+1 >= len(args) {
-					return cm.WriteError(resp.ErrSyntaxError)
+					return cm.WriteError(utils.ErrSyntaxError)
 				}
 
 				if ttl.kind != nil && *ttl.kind != *k {
-					return cm.WriteError(resp.ErrSyntaxError)
+					return cm.WriteError(utils.ErrSyntaxError)
 				}
 
 				n, err := utils.ParseInt64(args[i+1])
@@ -597,7 +596,7 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error 
 				ttl.kind = k
 				i += 2
 			} else {
-				return cm.WriteError(resp.ErrSyntaxError)
+				return cm.WriteError(utils.ErrSyntaxError)
 			}
 		}
 	}
@@ -670,7 +669,7 @@ func (cm *RespCommandManager) cmdAppend(db *store.Database, args [][]byte) error
 
 	nl := len(strEntry.Value) + len(suffix)
 	if nl > cm.MaxBulkLength() {
-		return cm.WriteError(resp.ErrProtoInvalidBulkLength)
+		return cm.WriteError(utils.ErrProtoInvalidBulkLength)
 	}
 
 	var buff bytes.Buffer
@@ -758,7 +757,7 @@ func (cm *RespCommandManager) cmdSetRange(db *store.Database, args [][]byte) err
 
 	needed, ok := utils.Add64(offset, int64(len(value)))
 	if !ok || needed > int64(cm.MaxBulkLength()) {
-		return cm.WriteError(resp.ErrProtoInvalidBulkLength)
+		return cm.WriteError(utils.ErrProtoInvalidBulkLength)
 	}
 
 	// Zero-padded fresh value for the "absent" cases.

@@ -85,6 +85,36 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return cm.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return cm.cmdHDel(db, args)
+	case "hexists":
+		if len(args) != 2 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdHExists(db, args)
+	case "hlen":
+		if len(args) != 1 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdHLen(db, args)
+	// case "hmget":
+	// 	if len(args) < 2 {
+	// 		return cm.WriteError(utils.WrongArgsNum(cmd))
+	// 	}
+	// 	return cm.cmdHMGet(db, args)
+	// case "hkeys":
+	// 	if len(args) != 1 {
+	// 		return cm.WriteError(utils.WrongArgsNum(cmd))
+	// 	}
+	// 	return cm.cmdHKeysOrVals(db, args, true)
+	// case "hvals":
+	// 	if len(args) != 1 {
+	// 		return cm.WriteError(utils.WrongArgsNum(cmd))
+	// 	}
+	// 	return cm.cmdHKeysOrVals(db, args, false)
+	// case "hincrby":
+	// 	if len(args) != 3 {
+	// 		return cm.WriteError(utils.WrongArgsNum(cmd))
+	// 	}
+	// 	return cm.cmdHIncrBy(db, args)
 
 	// general commands
 	case "ping":

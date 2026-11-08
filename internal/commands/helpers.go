@@ -3,7 +3,6 @@ package commands
 import (
 	"time"
 
-	"aymenhta.com/dice/internal/resp"
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
 )
@@ -38,7 +37,7 @@ func isCmdExpireAllowed(cond []byte, new_ttl time.Time, old_ttl *time.Time) (boo
 	case "lt":
 		return old_ttl == nil || new_ttl.Before(*old_ttl), nil
 	default:
-		return false, resp.ErrSyntaxError
+		return false, utils.ErrSyntaxError
 	}
 }
 

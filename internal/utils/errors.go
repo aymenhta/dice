@@ -1,4 +1,4 @@
-package resp
+package utils
 
 import "errors"
 
@@ -11,4 +11,5 @@ var (
 	ErrBadDigest                   = errors.New("digest must be exactly 16 hexadecimal characters")
 	ErrNotInt                      = errors.New("value is not an integer or out of range")
 	ErrIncrDecrOverflow            = errors.New("increment or decrement would overflow")
+	ErrWrongTypeErr                = errors.New("Operation against a key holding the wrong kind of value")
 )

@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -11,8 +10,6 @@ import (
 	"aymenhta.com/dice/internal/resp/static"
 	"github.com/zeebo/xxh3"
 )
-
-var ErrWrongTypeErr = errors.New("Operation against a key holding the wrong kind of value")
 
 // SanitizeSimpleString replaces all '\r' and '\n' characters with spaces.
 // Useful when writing untrusted error messages to the client.
