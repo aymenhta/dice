@@ -95,11 +95,11 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return cm.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return cm.cmdHLen(db, args)
-	// case "hmget":
-	// 	if len(args) < 2 {
-	// 		return cm.WriteError(utils.WrongArgsNum(cmd))
-	// 	}
-	// 	return cm.cmdHMGet(db, args)
+	case "hmget":
+		if len(args) < 2 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdHMGet(db, args)
 	// case "hkeys":
 	// 	if len(args) != 1 {
 	// 		return cm.WriteError(utils.WrongArgsNum(cmd))

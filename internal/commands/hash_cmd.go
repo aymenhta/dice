@@ -133,7 +133,7 @@ func (cm *RespCommandManager) cmdHGetAll(db *store.Database, args [][]byte) erro
 // HDEL key field [field ...] -> how many of those fields were removed.
 func (mc *RespCommandManager) cmdHDel(db *store.Database, args [][]byte) error {
 	key := utils.BStr(args[0])
-	fields := make([]string, len(args)-1)
+	fields := make([]string, 0, len(args)-1)
 	for _, arg := range args[1:] {
 		fields = append(fields, utils.BStr(arg))
 	}
@@ -191,15 +191,15 @@ func (mc *RespCommandManager) cmdHLen(db *store.Database, args [][]byte) error {
 // requested order (a repeated field is repeated), nil where missing.
 func (mc *RespCommandManager) cmdHMGet(db *store.Database, args [][]byte) error {
 	key := utils.BStr(args[0])
-	fields := make([]string, len(args)-1)
-	for _, arg := range args {
-		fields = append(fields, utils.BStr(arg))
+	fields := make([]string, 0, len(args)-1)
+	for _, arg := range args[1:] {
+		fields = append(fields, utils.BStr(utils.CopyBytes(arg)))
 	}
 
 	entry, ok := lives(db, key)
 	if !ok {
 		mc.WriteArrayHeader(len(fields))
-		for range fields {
+		for i := 0; i < len(fields); i++ {
 			mc.WriteNullString()
 		}
 
