@@ -1,6 +1,10 @@
 package store
 
-import "time"
+import (
+	"time"
+
+	"aymenhta.com/dice/internal/utils/mo"
+)
 
 type EntryKind uint8
 
@@ -28,23 +32,23 @@ func (s *String) TypeName() string {
 
 type HashField struct {
 	Value []byte
-	Ttl   *time.Time
+	Ttl   mo.Option[time.Time]
 }
 
 func NewHashField(value []byte) *HashField {
-	return &HashField{Value: value, Ttl: nil}
+	return &HashField{Value: value, Ttl: mo.None[time.Time]()}
 }
 
-func NewHashFieldWithTTL(value []byte, ttl *time.Time) *HashField {
+func NewHashFieldWithTTL(value []byte, ttl mo.Option[time.Time]) *HashField {
 	return &HashField{Value: value, Ttl: ttl}
 }
 
 func (e *HashField) IsExpired(now time.Time) bool {
-	if e.Ttl == nil {
+	if e.Ttl.IsNone() {
 		return false
 	}
 
-	return now.Equal(*e.Ttl) || now.After(*e.Ttl)
+	return now.Equal(e.Ttl.OrEmpty()) || now.After(e.Ttl.OrEmpty())
 }
 
 type Hash struct {

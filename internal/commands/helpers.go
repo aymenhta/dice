@@ -5,6 +5,7 @@ import (
 
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
+	"aymenhta.com/dice/internal/utils/mo"
 )
 
 func lives(db *store.Database, key string) (*store.Entry, bool) {
@@ -22,20 +23,22 @@ func lives(db *store.Database, key string) (*store.Entry, bool) {
 	return entry, true
 }
 
-func isCmdExpireAllowed(cond []byte, new_ttl time.Time, old_ttl *time.Time) (bool, error) {
+func isCmdExpireAllowed(cond []byte, new_ttl time.Time, old_ttl mo.Option[time.Time]) (bool, error) {
 	if cond == nil || len(cond) == 0 {
 		return true, nil
 	}
 
 	switch utils.BStr(utils.BytesToLower(cond)) {
 	case "nx":
-		return old_ttl == nil, nil
+		return old_ttl.IsNone(), nil
 	case "xx":
-		return old_ttl != nil, nil
+		return old_ttl.IsSome(), nil
 	case "gt":
-		return old_ttl != nil && new_ttl.After(*old_ttl), nil
+		// return old_ttl != nil && new_ttl.After(*old_ttl), nils
+		return old_ttl.IsSomeAnd(func(v time.Time) bool { return new_ttl.After(v) }), nil
 	case "lt":
-		return old_ttl == nil || new_ttl.Before(*old_ttl), nil
+		// return old_ttl == nil || new_ttl.Before(*old_ttl), nil
+		return old_ttl.IsNoneOr(func(v time.Time) bool { return new_ttl.Before(v) }), nil
 	default:
 		return false, utils.ErrSyntaxError
 	}

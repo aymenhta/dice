@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"aymenhta.com/dice/internal/utils"
+	"aymenhta.com/dice/internal/utils/mo"
 )
 
 type Database struct {
@@ -81,7 +82,7 @@ func (db *Database) IncrByHashFields(key string, field string, delta int64, now 
 	if !ok || entry.IsExpired(now) {
 		h := make(map[string]*HashField)
 		h[field] = NewHashField(utils.Int64ToBytes(delta))
-		db.Body[key] = NewHashEntry(h, nil)
+		db.Body[key] = NewHashEntry(h, mo.None[time.Time]())
 		return delta, nil
 	}
 

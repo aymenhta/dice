@@ -8,7 +8,7 @@ import (
 
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
-	"github.com/samber/mo"
+	"aymenhta.com/dice/internal/utils/mo"
 )
 
 /*
@@ -39,7 +39,7 @@ func buildHash(pairs []HsetPair) (map[string]*store.HashField, int64) {
 
 	for _, pair := range pairs {
 		_, ok := h[pair.field]
-		h[pair.field] = &store.HashField{Value: pair.value, Ttl: nil}
+		h[pair.field] = store.NewHashField(pair.value)
 		if !ok {
 			added += 1
 		}
@@ -62,10 +62,11 @@ func (cm *RespCommandManager) cmdHSet(db *store.Database, args [][]byte) error {
 	entry, ok := db.Get(key)
 	if !ok || entry.IsExpired(now) {
 		hash, added := buildHash(pairs)
-		db.Set(key, &store.Entry{
-			Value: &store.Hash{Value: hash},
-			Ttl:   nil,
-		})
+		// db.Set(key, &store.Entry{
+		// 	Value: &store.Hash{Value: hash},
+		// 	Ttl:   nil,
+		// })
+		db.Set(key, store.NewHashEntry(hash, mo.None[time.Time]()))
 		return cm.WriteInt64(added)
 	}
 
@@ -330,17 +331,19 @@ func isHExpireAllowed(cond HExpireCondition, secs time.Time, old mo.Option[time.
 	case HEXPIRE_XX:
 		return old.IsSome()
 	case HEXPIRE_GT:
-		v, ok := old.Get()
-		if !ok {
-			return false
-		}
-		return v.Before(secs)
+		// v, ok := old.Get()
+		// if !ok {
+		// 	return false
+		// }
+		// return v.Before(secs)
+		return old.IsSomeAnd(func(value time.Time) bool { return value.Before(secs) })
 	case HEXPIRE_LT:
-		v, ok := old.Get()
-		if !ok {
-			return true
-		}
-		return v.After(secs)
+		// v, ok := old.Get()
+		// if !ok {
+		// 	return true
+		// }
+		// return v.After(secs)
+		return old.IsNoneOr(func(v time.Time) bool { return v.After(secs) })
 	default:
 		return true
 	}
@@ -458,15 +461,15 @@ func (mc *RespCommandManager) cmdHExpire(db *store.Database, rawArgs [][]byte) e
 			continue
 		}
 		oldTtl := mo.None[time.Time]()
-		if fv.Ttl != nil {
-			oldTtl = mo.Some(*fv.Ttl)
+		if fv.Ttl.IsSome() {
+			oldTtl = fv.Ttl
 		}
 		if !isHExpireAllowed(args.condition, newTtl, oldTtl) {
 			out = append(out, 0)
 			continue
 		}
 
-		fv.Ttl = utils.Pointer(newTtl)
+		fv.Ttl = mo.Some(newTtl)
 		out = append(out, 1)
 	}
 	db.Unlock()

@@ -6,6 +6,7 @@ import (
 
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
+	"aymenhta.com/dice/internal/utils/mo"
 )
 
 func (cm *RespCommandManager) cmdPing(args [][]byte) error {
@@ -93,7 +94,7 @@ func (cm *RespCommandManager) cmdExpire(db *store.Database, args [][]byte) error
 		return cm.WriteInt(0)
 	}
 
-	entry.Ttl = utils.Pointer(now)
+	entry.Ttl = mo.Some(now)
 	return cm.WriteInt(1)
 }
 
@@ -109,11 +110,11 @@ func (cm *RespCommandManager) cmdTtl(db *store.Database, args [][]byte) error {
 		return cm.WriteInt(-2) // doesn't exist
 	}
 
-	if entry.Ttl == nil {
+	if entry.Ttl.IsNone() {
 		return cm.WriteInt(-1) // no expiry set
 	}
 
-	remaining := entry.Ttl.Sub(time.Now()).Seconds()
+	remaining := entry.Ttl.OrEmpty().Sub(time.Now()).Seconds()
 	return cm.WriteInt64(int64(remaining))
 }
 

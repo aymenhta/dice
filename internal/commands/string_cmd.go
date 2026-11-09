@@ -8,6 +8,7 @@ import (
 
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
+	"aymenhta.com/dice/internal/utils/mo"
 )
 
 type SetConditionKind uint8
@@ -33,17 +34,18 @@ const (
 	SET_TTL_PERSIST
 )
 
-func ttl_value_option(opt string) *SetTtlKind {
-	if opt == "ex" {
-		return utils.Pointer(SET_TTL_EX)
-	} else if opt == "px" {
-		return utils.Pointer(SET_TTL_PX)
-	} else if opt == "exat" {
-		return utils.Pointer(SET_TTL_EXAT)
-	} else if opt == "pexat" {
-		return utils.Pointer(SET_TTL_PXAT)
-	} else {
-		return nil
+func ttl_value_option(opt string) mo.Option[SetTtlKind] {
+	switch opt {
+	case "ex":
+		return mo.Some(SET_TTL_EX)
+	case "px":
+		return mo.Some(SET_TTL_PX)
+	case "exat":
+		return mo.Some(SET_TTL_EXAT)
+	case "pxat":
+		return mo.Some(SET_TTL_PXAT)
+	default:
+		return mo.None[SetTtlKind]()
 	}
 }
 
@@ -56,7 +58,7 @@ const (
 )
 
 type SetCondition struct {
-	cmp_value []byte
+	cmp_value mo.Option[[]byte]
 	kind      SetConditionKind
 }
 
@@ -71,22 +73,26 @@ func (sc *SetCondition) cond_allows(current []byte) bool {
 		return current != nil
 
 	case sc.kind == SET_IFEQ && current != nil:
-		return bytes.Compare(current, sc.cmp_value) == 0
+		return sc.cmp_value.IsSomeAnd(func(v []byte) bool { return bytes.Compare(current, v) == 0 })
+		// return bytes.Compare(current, sc.cmp_value.OrEmpty()) == 0
 	case sc.kind == SET_IFEQ && current == nil:
 		return false
 
 	case sc.kind == SET_IFNE && current != nil:
-		return bytes.Compare(current, sc.cmp_value) != 0
+		return sc.cmp_value.IsSomeAnd(func(v []byte) bool { return bytes.Compare(current, v) != 0 })
+		// return bytes.Compare(current, sc.cmp_value.OrEmpty()) != 0
 	case sc.kind == SET_IFNE && current == nil:
 		return true
 
 	case sc.kind == SET_IFDEQ && current != nil:
-		return utils.BytesToXXH3hex(current) == utils.BStr(sc.cmp_value)
+		return sc.cmp_value.IsSomeAnd(func(v []byte) bool { return utils.BytesToXXH3hex(current) == utils.BStr(v) })
+		// return utils.BytesToXXH3hex(current) == utils.BStr(sc.cmp_value.OrEmpty())
 	case sc.kind == SET_IFDEQ && current == nil:
 		return false
 
 	case sc.kind == SET_IFDNE && current != nil:
-		return utils.BytesToXXH3hex(current) != utils.BStr(sc.cmp_value)
+		return sc.cmp_value.IsSomeAnd(func(v []byte) bool { return utils.BytesToXXH3hex(current) != utils.BStr(v) })
+		// return utils.BytesToXXH3hex(current) != utils.BStr(sc.cmp_value.OrEmpty())
 	case sc.kind == SET_IFDNE && current == nil:
 		return true
 
@@ -101,8 +107,8 @@ func (sc *SetCondition) needs_value() bool {
 }
 
 type SetTTL struct {
-	new_ttl *time.Time
-	kind    *SetTtlKind
+	new_ttl mo.Option[time.Time]
+	kind    mo.Option[SetTtlKind]
 	action  SetTtlAction
 }
 
@@ -118,40 +124,37 @@ func convertSecsToMillis(kind SetTtlKind, n int64, cmd string) (int64, error) {
 	return -1, utils.InvalidExpire(cmd)
 }
 
-func calculateDeadline(kind SetTtlKind, ms int64, cmd string) (*time.Time, error) {
-	var deadline time.Time
-	var err error
-	if kind == SET_TTL_EX || kind == SET_TTL_PX {
-		deadline = time.Now().Add(time.Duration(ms) * time.Millisecond)
-	} else if kind == SET_TTL_EXAT || kind == SET_TTL_PXAT {
-		deadline = utils.UnixMsToInstant(ms)
-	} else {
-		err = utils.InvalidExpire(cmd)
+func calculateDeadline(kind SetTtlKind, ms int64, cmd string) (mo.Option[time.Time], error) {
+	switch {
+	case kind == SET_TTL_EX || kind == SET_TTL_PX:
+		return mo.Some(time.Now().Add(time.Duration(ms) * time.Millisecond)), nil
+	case kind == SET_TTL_EXAT || kind == SET_TTL_PXAT:
+		return mo.Some(utils.UnixMsToInstant(ms)), nil
+	default:
+		return mo.None[time.Time](), utils.InvalidExpire(cmd)
 	}
-
-	return utils.Pointer(deadline), err
 }
 
-func expiryToTime(kind SetTtlKind, n int64, cmd string) (*time.Time, error) {
+func expiryToTime(kind SetTtlKind, n int64, cmd string) (mo.Option[time.Time], error) {
 	if n <= 0 {
-		return nil, utils.InvalidExpire(cmd)
+		return mo.None[time.Time](), utils.InvalidExpire(cmd)
 	}
 
 	// convert to ms
 	millis, err := convertSecsToMillis(kind, n, cmd)
 	if err != nil {
-		return nil, err
+		return mo.None[time.Time](), err
 	}
 
 	// calculate deadline
 	return calculateDeadline(kind, millis, cmd)
 }
 
-func (x *SetTTL) expires_at() *time.Time {
+func (x *SetTTL) expires_at() mo.Option[time.Time] {
 	if x.action == SET_TTL_AT {
 		return x.new_ttl
 	}
-	return nil
+	return mo.None[time.Time]()
 }
 
 func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
@@ -163,13 +166,13 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 	value := utils.CopyBytes(args[1])
 
 	cond := &SetCondition{
-		cmp_value: nil,
+		cmp_value: mo.None[[]byte](),
 		kind:      SET_ALWAYS,
 	}
 	get := false
 	ttl := &SetTTL{
-		new_ttl: nil,
-		kind:    nil,
+		new_ttl: mo.None[time.Time](),
+		kind:    mo.None[SetTtlKind](),
 		action:  SET_TTL_CLEAR,
 	}
 
@@ -197,7 +200,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFEQ
-			cond.cmp_value = utils.CopyBytes(args[i+1])
+			cond.cmp_value = mo.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
 		} else if option == "ifne" {
 			if cond.kind != SET_ALWAYS {
@@ -207,7 +210,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFNE
-			cond.cmp_value = utils.CopyBytes(args[i+1])
+			cond.cmp_value = mo.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
 		} else if option == "ifdeq" {
 			if cond.kind != SET_ALWAYS {
@@ -217,7 +220,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFDEQ
-			cond.cmp_value = utils.CopyBytes(args[i+1])
+			cond.cmp_value = mo.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
 		} else if option == "ifdne" {
 			if cond.kind != SET_ALWAYS {
@@ -227,32 +230,39 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFDNE
-			cond.cmp_value = utils.CopyBytes(args[i+1])
+			cond.cmp_value = mo.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
 		} else if option == "get" {
 			get = true
 			i = i + 1
 		} else if option == "keepttl" {
-			if ttl.kind != nil && *ttl.kind != SET_TTL_KEEPTTL {
+			// if ttl.kind != nil && *ttl.kind != SET_TTL_KEEPTTL {
+			// 	return cm.WriteError(utils.ErrSyntaxError)
+			// }
+			if ttl.kind.IsSomeAnd(func(k SetTtlKind) bool { return k != SET_TTL_KEEPTTL }) {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
-			ttl.kind = utils.Pointer(SET_TTL_KEEPTTL)
+			ttl.kind = mo.Some(SET_TTL_KEEPTTL)
 			ttl.action = SET_TTL_KEEP
 			i = i + 1
 		} else {
 			kind := ttl_value_option(option)
-			if kind != nil {
+			if kind.IsSome() {
 				if i+1 >= len(args) {
 					return cm.WriteError(utils.ErrSyntaxError)
 				}
-				if ttl.kind != nil && *ttl.kind != *kind {
+				// if ttl.kind != nil && *ttl.kind != *kind {
+				// 	return cm.WriteError(utils.ErrSyntaxError)
+				// }
+				kindVal := kind.OrEmpty()
+				if ttl.kind.IsSomeAnd(func(k SetTtlKind) bool { return k != kindVal }) {
 					return cm.WriteError(utils.ErrSyntaxError)
 				}
 				n, err := utils.ParseInt64(args[i+1])
 				if err != nil {
 					return cm.WriteError(err)
 				}
-				new_ttl, err := expiryToTime(*kind, n, "set")
+				new_ttl, err := expiryToTime(kindVal, n, "set")
 				if err != nil {
 					return cm.WriteError(err)
 				}
@@ -302,9 +312,9 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 
 		allowed := cond.cond_allows(current)
 		if allowed {
-			var expiresAt *time.Time = nil
+			expiresAt := mo.None[time.Time]()
 			if ttl.action == SET_TTL_CLEAR {
-				expiresAt = nil
+				expiresAt = mo.None[time.Time]()
 			} else if ttl.action == SET_TTL_KEEP && exists {
 				expiresAt = entry.Ttl
 			} else if ttl.action == SET_TTL_AT {
@@ -345,17 +355,10 @@ func (cm *RespCommandManager) cmdGet(db *store.Database, args [][]byte) error {
 }
 
 func (cm *RespCommandManager) incr_decrByDelta(db *store.Database, args [][]byte, delta int64) error {
-
 	key := utils.BStr(utils.CopyBytes(args[0]))
 	entry, ok := db.Get(key)
-	if !ok {
-		db.Set(key, store.NewStringEntry(utils.Int64ToBytes(delta), nil))
-		return cm.WriteInt64(delta)
-	}
-
-	if entry.IsExpired(time.Now()) {
-		// Logically absent: start from zero, no TTL.
-		db.Set(key, store.NewStringEntry(utils.Int64ToBytes(delta), nil))
+	if !ok || entry.IsExpired(time.Now()) {
+		db.Set(key, store.NewStringEntry(utils.Int64ToBytes(delta), mo.None[time.Time]()))
 		return cm.WriteInt64(delta)
 	}
 
@@ -460,7 +463,7 @@ func (cm *RespCommandManager) cmdMSet(db *store.Database, args [][]byte) error {
 	for pair := range slices.Chunk(args, 2) {
 		key := utils.BStr(utils.CopyBytes(pair[0]))
 		value := utils.CopyBytes(pair[1])
-		pairs[key] = store.NewStringEntry(value, nil)
+		pairs[key] = store.NewStringEntry(value, mo.None[time.Time]())
 	}
 
 	db.MSet(pairs)
@@ -492,7 +495,10 @@ func (cm *RespCommandManager) cmdDelEx(db *store.Database, args [][]byte) error 
 	}
 
 	key := utils.BStr(args[0])
-	condition := &SetCondition{kind: SET_ALWAYS}
+	condition := &SetCondition{
+		cmp_value: mo.None[[]byte](),
+		kind:      SET_ALWAYS,
+	}
 
 	if len(args) == 1 {
 		condition.kind = SET_ALWAYS
@@ -520,7 +526,7 @@ func (cm *RespCommandManager) cmdDelEx(db *store.Database, args [][]byte) error 
 		default:
 			return cm.WriteError(utils.ErrSyntaxError)
 		}
-		condition.cmp_value = operand
+		condition.cmp_value = mo.Some(operand)
 	} else {
 		return cm.WriteError(utils.ErrSyntaxError)
 	}
@@ -563,20 +569,25 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error 
 	for i < len(args) {
 		opt := utils.BStr(utils.BytesToLower(args[i]))
 		if opt == "persist" {
-			if ttl.kind != nil && *ttl.kind != SET_TTL_PERSIST {
+			// if ttl.kind != nil && *ttl.kind != SET_TTL_PERSIST {
+			// 	return cm.WriteError(utils.ErrSyntaxError)
+			// }
+			if ttl.kind.IsSomeAnd(func(k SetTtlKind) bool { return k != SET_TTL_PERSIST }) {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
-			ttl.kind = utils.Pointer(SET_TTL_PERSIST)
+			ttl.kind = mo.Some(SET_TTL_PERSIST)
 			ttl.action = SET_TTL_CLEAR
 			i += 1
 		} else {
 			k := ttl_value_option(opt)
-			if k != nil {
+			if k.IsSome() {
 				if i+1 >= len(args) {
 					return cm.WriteError(utils.ErrSyntaxError)
 				}
 
-				if ttl.kind != nil && *ttl.kind != *k {
+				kVal := k.OrEmpty()
+
+				if ttl.kind.IsSomeAnd(func(k SetTtlKind) bool { return k != kVal }) {
 					return cm.WriteError(utils.ErrSyntaxError)
 				}
 
@@ -585,7 +596,7 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error 
 					return cm.WriteError(err)
 				}
 
-				t, err := expiryToTime(*k, n, "getex")
+				t, err := expiryToTime(kVal, n, "getex")
 				if err != nil {
 					return cm.WriteError(err)
 				}
@@ -617,7 +628,7 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error 
 	}
 
 	if ttl.action == SET_TTL_CLEAR {
-		entry.Ttl = nil
+		entry.Ttl = mo.None[time.Time]()
 	} else if ttl.action == SET_TTL_AT {
 		entry.Ttl = ttl.new_ttl
 	}
@@ -657,7 +668,7 @@ func (cm *RespCommandManager) cmdAppend(db *store.Database, args [][]byte) error
 	entry, ok := db.Get(key)
 	if !ok || entry.IsExpired(now) {
 		l := len(suffix)
-		db.Set(key, store.NewStringEntry(suffix, nil))
+		db.Set(key, store.NewStringEntry(suffix, mo.None[time.Time]()))
 		return cm.WriteInt(l)
 	}
 
@@ -769,7 +780,7 @@ func (cm *RespCommandManager) cmdSetRange(db *store.Database, args [][]byte) err
 	now := time.Now()
 	entry, ok := lives(db, key)
 	if !ok || entry.IsExpired(now) {
-		db.Set(key, store.NewStringEntry(fresh(), nil))
+		db.Set(key, store.NewStringEntry(fresh(), mo.None[time.Time]()))
 		return cm.WriteInt64(needed)
 	}
 

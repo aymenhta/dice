@@ -2,23 +2,25 @@ package store
 
 import (
 	"time"
+
+	"aymenhta.com/dice/internal/utils/mo"
 )
 
 const DB_NUM = 16
 
 type Entry struct {
 	Value IEntryType
-	Ttl   *time.Time
+	Ttl   mo.Option[time.Time]
 }
 
-func NewStringEntry(value []byte, ttl *time.Time) *Entry {
+func NewStringEntry(value []byte, ttl mo.Option[time.Time]) *Entry {
 	return &Entry{
 		Value: &String{Value: value},
 		Ttl:   ttl,
 	}
 }
 
-func NewHashEntry(value map[string]*HashField, ttl *time.Time) *Entry {
+func NewHashEntry(value map[string]*HashField, ttl mo.Option[time.Time]) *Entry {
 	return &Entry{
 		Value: &Hash{Value: value},
 		Ttl:   ttl,
@@ -26,11 +28,11 @@ func NewHashEntry(value map[string]*HashField, ttl *time.Time) *Entry {
 }
 
 func (e *Entry) IsExpired(now time.Time) bool {
-	if e.Ttl == nil {
+	if e.Ttl.IsNone() {
 		return false
 	}
 
-	return now.Equal(*e.Ttl) || now.After(*e.Ttl)
+	return now.Equal(e.Ttl.OrEmpty()) || now.After(e.Ttl.OrEmpty())
 }
 
 func (e *Entry) AsStr() (*String, bool) {
