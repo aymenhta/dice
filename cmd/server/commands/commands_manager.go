@@ -152,6 +152,11 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return cm.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return cm.cmdLLen(db, args)
+	case "lindex":
+		if len(args) != 2 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdLIndex(db, args)
 
 	// general commands
 	case "ping":

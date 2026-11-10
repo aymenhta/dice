@@ -165,3 +165,37 @@ func (mc *RespCommandManager) cmdLLen(db *store.Database, args [][]byte) error {
 
 	return mc.WriteInt(le.Value.Len())
 }
+
+func (mc *RespCommandManager) cmdLIndex(db *store.Database, args [][]byte) error {
+	key := utils.BStr(args[0])
+	n, err := utils.ParseInt64(args[1])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+	index := int(n)
+
+	e, ok := lives(db, key)
+	if !ok {
+		return mc.WriteInt64(0)
+	}
+
+	le, ok := e.AsList()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	len := le.Value.Len()
+
+	if index < 0 {
+		index = len + index
+		if index < 0 {
+			return mc.WriteNullString()
+		}
+		return mc.WriteBytes(le.Value.At(index))
+	}
+
+	if index > len {
+		return mc.WriteNullString()
+	}
+	return mc.WriteBytes(le.Value.At(index))
+}
