@@ -81,6 +81,10 @@ func (q *Deque[T]) PushFront(elem T) {
 	q.count++
 }
 
+func (q *Deque[T]) IsEmpty() bool {
+	return q.count == 0
+}
+
 // PopFront removes and returns the element from the front of the queue.
 // Implements FIFO when used with [PushBack]. If the queue is empty, the call
 // panics.

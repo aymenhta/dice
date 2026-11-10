@@ -132,6 +132,11 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return cm.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return cm.cmdRPush(db, args)
+	case "lpop":
+		if len(args) < 1 || len(args) > 2 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdLPop(db, args)
 
 	// general commands
 	case "ping":

@@ -2,11 +2,7 @@ package dsa
 
 import (
 	"bytes"
-	"database/sql"
-	"database/sql/driver"
-	"encoding/gob"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 )
@@ -278,110 +274,6 @@ func (o Option[T]) MarshalText() ([]byte, error) {
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
 func (o *Option[T]) UnmarshalText(data []byte) error {
 	return json.Unmarshal(data, o)
-}
-
-// MarshalBinary is the interface implemented by an object that can marshal itself into a binary form.
-func (o Option[T]) MarshalBinary() ([]byte, error) {
-	if !o.isPresent {
-		return []byte{0}, nil
-	}
-
-	var buf bytes.Buffer
-	buf.WriteByte(1)
-
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(o.value); err != nil {
-		return []byte{}, err
-	}
-
-	return buf.Bytes(), nil
-}
-
-// UnmarshalBinary is the interface implemented by an object that can unmarshal a binary representation of itself.
-func (o *Option[T]) UnmarshalBinary(data []byte) error {
-	if len(data) == 0 {
-		return errors.New("Option[T].UnmarshalBinary: no data")
-	}
-
-	if data[0] == 0 {
-		o.isPresent = false
-		o.value = empty[T]()
-		return nil
-	}
-
-	buf := bytes.NewBuffer(data[1:])
-	dec := gob.NewDecoder(buf)
-	err := dec.Decode(&o.value)
-	if err != nil {
-		return err
-	}
-
-	o.isPresent = true
-	return nil
-}
-
-// GobEncode implements the gob.GobEncoder interface.
-func (o Option[T]) GobEncode() ([]byte, error) {
-	return o.MarshalBinary()
-}
-
-// GobDecode implements the gob.GobDecoder interface.
-func (o *Option[T]) GobDecode(data []byte) error {
-	return o.UnmarshalBinary(data)
-}
-
-// Scan implements the SQL sql.Scanner interface.
-func (o *Option[T]) Scan(src any) error {
-	if src == nil {
-		o.isPresent = false
-		o.value = empty[T]()
-		return nil
-	}
-
-	// it is only possible to assert interfaces, so convert first
-	// https://go.googlesource.com/proposal/+/refs/heads/master/design/43651-type-parameters.md#why-not-permit-type-assertions-on-values-whose-type-is-a-type-parameter
-	var t T
-	if tScanner, ok := interface{}(&t).(sql.Scanner); ok {
-		if err := tScanner.Scan(src); err != nil {
-			return fmt.Errorf("failed to scan: %w", err)
-		}
-
-		o.isPresent = true
-		o.value = t
-		return nil
-	}
-
-	if av, err := driver.DefaultParameterConverter.ConvertValue(src); err == nil {
-		if v, ok := av.(T); ok {
-			o.isPresent = true
-			o.value = v
-			return nil
-		}
-	}
-
-	return o.scanConvertValue(src)
-}
-
-func (o *Option[T]) scanConvertValue(src any) error {
-	// we try to convertAssign values that we can't directly assign because ConvertValue
-	// will return immediately for v that is already a Value, even if it is a different
-	// Value type than the one we expect here.
-	var st sql.Null[T]
-	if err := st.Scan(src); err == nil {
-		o.isPresent = true
-		o.value = st.V
-		return nil
-	}
-	return fmt.Errorf("failed to scan Option[T]")
-}
-
-// Value implements the driver Valuer interface.
-func (o Option[T]) Value() (driver.Value, error) {
-	if !o.isPresent {
-		return nil, nil
-	}
-
-	return driver.DefaultParameterConverter.ConvertValue(o.value)
 }
 
 // Equal compares two Option[T] instances for equality

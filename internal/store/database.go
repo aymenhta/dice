@@ -224,6 +224,44 @@ func (db *Database) RPush(key string, elems [][]byte) (int, error) {
 	return le.Value.Len(), nil
 }
 
+func (db *Database) LPop(key string, count dsa.Option[int64]) ([][]byte, error) {
+	now := time.Now()
+	db.Lock()
+	defer db.Unlock()
+
+	e, ok := db.Body[key]
+	if !ok {
+		return nil, utils.ErrRecordDoesntExist
+	}
+
+	if e.IsExpired(now) {
+		delete(db.Body, key)
+		return nil, utils.ErrRecordDoesntExist
+	}
+
+	le, ok := e.AsList()
+	if !ok {
+		return nil, utils.ErrWrongTypeErr
+	}
+
+	if le.Value.IsEmpty() {
+		return nil, utils.ErrRecordDoesntExist
+	}
+
+	if count.IsSome() {
+		c := count.OrEmpty()
+		response := make([][]byte, 0, c)
+		i := int64(0)
+		for !le.Value.IsEmpty() && i < c {
+			response = append(response, le.Value.PopFront())
+			i += 1
+		}
+		return response, nil
+	}
+
+	return [][]byte{le.Value.PopFront()}, nil
+}
+
 func (db *Database) debugMap() {
 	println("====================================================")
 	fmt.Println("key -> value")
