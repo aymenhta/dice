@@ -149,3 +149,19 @@ func (mc *RespCommandManager) cmdLRange(db *store.Database, args [][]byte) error
 
 	return mc.WriteArrayBytes(le.Value.Slice(s, e))
 }
+
+func (mc *RespCommandManager) cmdLLen(db *store.Database, args [][]byte) error {
+	key := utils.BStr(args[0])
+
+	e, ok := lives(db, key)
+	if !ok {
+		return mc.WriteInt64(0)
+	}
+
+	le, ok := e.AsList()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	return mc.WriteInt(le.Value.Len())
+}
