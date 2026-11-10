@@ -120,3 +120,32 @@ func (mc *RespCommandManager) cmdRPop(db *store.Database, args [][]byte) error {
 
 	return mc.WriteArrayBytes(b)
 }
+
+func (mc *RespCommandManager) cmdLRange(db *store.Database, args [][]byte) error {
+	key := utils.BStr(args[0])
+	start, err := utils.ParseInt64(args[1])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+	end, err := utils.ParseInt64(args[2])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+
+	entry, ok := lives(db, key)
+	if !ok {
+		return mc.WriteEmptyArray()
+	}
+
+	le, ok := entry.AsList()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	s, e, ok := getrangeBounds(le.Value.Len(), start, end)
+	if !ok {
+		return mc.WriteEmptyArray()
+	}
+
+	return mc.WriteArrayBytes(le.Value.Slice(s, e))
+}

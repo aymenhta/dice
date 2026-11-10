@@ -747,6 +747,13 @@ func (x *RespReadWriter) WriteArray(v []any) error {
 	return nil
 }
 
+func (x *RespReadWriter) WriteEmptyArray() error {
+	if err := x.WriteArrayHeader(0); err != nil {
+		return err
+	}
+	return nil
+}
+
 // WriteMapHeader writes a [Map](https://redis.io/docs/latest/develop/reference/protocol-spec/#map-reply) header with the specified length. For RESP2 connections, this writes an [Array](https://redis.io/docs/latest/develop/reference/protocol-spec/#array-reply) header with twice the specified length.
 func (x *RespReadWriter) WriteMapHeader(l int) error {
 	if x.resp2compat {

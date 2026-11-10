@@ -189,6 +189,10 @@ func (q *Deque[T]) Back() T {
 	return q.buf[q.prev(q.tail)]
 }
 
+func (q *Deque[T]) Slice(s, e int64) []T {
+	return q.buf[s : e+1]
+}
+
 // At returns the element at index i in the queue without removing the element
 // from the queue. This method accepts only non-negative index values. At(0)
 // refers to the first element and is the same as [Front]. At(Len()-1) refers
