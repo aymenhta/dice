@@ -121,6 +121,13 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 		}
 		return cm.cmdHExpire(db, args)
 
+	// list commands
+	case "lpush":
+		if len(args) < 2 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdLPush(db, args)
+
 	// general commands
 	case "ping":
 		return cm.cmdPing(args)

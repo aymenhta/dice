@@ -4,7 +4,7 @@ import (
 	"log"
 	"net"
 
-	"aymenhta.com/dice/internal/commands"
+	"aymenhta.com/dice/cmd/server/commands"
 	"aymenhta.com/dice/internal/resp"
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"

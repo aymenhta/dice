@@ -6,9 +6,9 @@ import (
 	"slices"
 	"time"
 
+	"aymenhta.com/dice/internal/dsa"
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
-	"aymenhta.com/dice/internal/utils/mo"
 )
 
 type SetConditionKind uint8
@@ -34,18 +34,18 @@ const (
 	SET_TTL_PERSIST
 )
 
-func ttl_value_option(opt string) mo.Option[SetTtlKind] {
+func ttl_value_option(opt string) dsa.Option[SetTtlKind] {
 	switch opt {
 	case "ex":
-		return mo.Some(SET_TTL_EX)
+		return dsa.Some(SET_TTL_EX)
 	case "px":
-		return mo.Some(SET_TTL_PX)
+		return dsa.Some(SET_TTL_PX)
 	case "exat":
-		return mo.Some(SET_TTL_EXAT)
+		return dsa.Some(SET_TTL_EXAT)
 	case "pxat":
-		return mo.Some(SET_TTL_PXAT)
+		return dsa.Some(SET_TTL_PXAT)
 	default:
-		return mo.None[SetTtlKind]()
+		return dsa.None[SetTtlKind]()
 	}
 }
 
@@ -58,7 +58,7 @@ const (
 )
 
 type SetCondition struct {
-	cmp_value mo.Option[[]byte]
+	cmp_value dsa.Option[[]byte]
 	kind      SetConditionKind
 }
 
@@ -107,8 +107,8 @@ func (sc *SetCondition) needs_value() bool {
 }
 
 type SetTTL struct {
-	new_ttl mo.Option[time.Time]
-	kind    mo.Option[SetTtlKind]
+	new_ttl dsa.Option[time.Time]
+	kind    dsa.Option[SetTtlKind]
 	action  SetTtlAction
 }
 
@@ -124,37 +124,37 @@ func convertSecsToMillis(kind SetTtlKind, n int64, cmd string) (int64, error) {
 	return -1, utils.InvalidExpire(cmd)
 }
 
-func calculateDeadline(kind SetTtlKind, ms int64, cmd string) (mo.Option[time.Time], error) {
+func calculateDeadline(kind SetTtlKind, ms int64, cmd string) (dsa.Option[time.Time], error) {
 	switch {
 	case kind == SET_TTL_EX || kind == SET_TTL_PX:
-		return mo.Some(time.Now().Add(time.Duration(ms) * time.Millisecond)), nil
+		return dsa.Some(time.Now().Add(time.Duration(ms) * time.Millisecond)), nil
 	case kind == SET_TTL_EXAT || kind == SET_TTL_PXAT:
-		return mo.Some(utils.UnixMsToInstant(ms)), nil
+		return dsa.Some(utils.UnixMsToInstant(ms)), nil
 	default:
-		return mo.None[time.Time](), utils.InvalidExpire(cmd)
+		return dsa.None[time.Time](), utils.InvalidExpire(cmd)
 	}
 }
 
-func expiryToTime(kind SetTtlKind, n int64, cmd string) (mo.Option[time.Time], error) {
+func expiryToTime(kind SetTtlKind, n int64, cmd string) (dsa.Option[time.Time], error) {
 	if n <= 0 {
-		return mo.None[time.Time](), utils.InvalidExpire(cmd)
+		return dsa.None[time.Time](), utils.InvalidExpire(cmd)
 	}
 
 	// convert to ms
 	millis, err := convertSecsToMillis(kind, n, cmd)
 	if err != nil {
-		return mo.None[time.Time](), err
+		return dsa.None[time.Time](), err
 	}
 
 	// calculate deadline
 	return calculateDeadline(kind, millis, cmd)
 }
 
-func (x *SetTTL) expires_at() mo.Option[time.Time] {
+func (x *SetTTL) expires_at() dsa.Option[time.Time] {
 	if x.action == SET_TTL_AT {
 		return x.new_ttl
 	}
-	return mo.None[time.Time]()
+	return dsa.None[time.Time]()
 }
 
 func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
@@ -166,13 +166,13 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 	value := utils.CopyBytes(args[1])
 
 	cond := &SetCondition{
-		cmp_value: mo.None[[]byte](),
+		cmp_value: dsa.None[[]byte](),
 		kind:      SET_ALWAYS,
 	}
 	get := false
 	ttl := &SetTTL{
-		new_ttl: mo.None[time.Time](),
-		kind:    mo.None[SetTtlKind](),
+		new_ttl: dsa.None[time.Time](),
+		kind:    dsa.None[SetTtlKind](),
 		action:  SET_TTL_CLEAR,
 	}
 
@@ -200,7 +200,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFEQ
-			cond.cmp_value = mo.Some(utils.CopyBytes(args[i+1]))
+			cond.cmp_value = dsa.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
 		} else if option == "ifne" {
 			if cond.kind != SET_ALWAYS {
@@ -210,7 +210,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFNE
-			cond.cmp_value = mo.Some(utils.CopyBytes(args[i+1]))
+			cond.cmp_value = dsa.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
 		} else if option == "ifdeq" {
 			if cond.kind != SET_ALWAYS {
@@ -220,7 +220,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFDEQ
-			cond.cmp_value = mo.Some(utils.CopyBytes(args[i+1]))
+			cond.cmp_value = dsa.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
 		} else if option == "ifdne" {
 			if cond.kind != SET_ALWAYS {
@@ -230,7 +230,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_IFDNE
-			cond.cmp_value = mo.Some(utils.CopyBytes(args[i+1]))
+			cond.cmp_value = dsa.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
 		} else if option == "get" {
 			get = true
@@ -242,7 +242,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 			if ttl.kind.IsSomeAnd(func(k SetTtlKind) bool { return k != SET_TTL_KEEPTTL }) {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
-			ttl.kind = mo.Some(SET_TTL_KEEPTTL)
+			ttl.kind = dsa.Some(SET_TTL_KEEPTTL)
 			ttl.action = SET_TTL_KEEP
 			i = i + 1
 		} else {
@@ -312,9 +312,9 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 
 		allowed := cond.cond_allows(current)
 		if allowed {
-			expiresAt := mo.None[time.Time]()
+			expiresAt := dsa.None[time.Time]()
 			if ttl.action == SET_TTL_CLEAR {
-				expiresAt = mo.None[time.Time]()
+				expiresAt = dsa.None[time.Time]()
 			} else if ttl.action == SET_TTL_KEEP && exists {
 				expiresAt = entry.Ttl
 			} else if ttl.action == SET_TTL_AT {
@@ -358,7 +358,7 @@ func (cm *RespCommandManager) incr_decrByDelta(db *store.Database, args [][]byte
 	key := utils.BStr(utils.CopyBytes(args[0]))
 	entry, ok := db.Get(key)
 	if !ok || entry.IsExpired(time.Now()) {
-		db.Set(key, store.NewStringEntry(utils.Int64ToBytes(delta), mo.None[time.Time]()))
+		db.Set(key, store.NewStringEntry(utils.Int64ToBytes(delta), dsa.None[time.Time]()))
 		return cm.WriteInt64(delta)
 	}
 
@@ -463,7 +463,7 @@ func (cm *RespCommandManager) cmdMSet(db *store.Database, args [][]byte) error {
 	for pair := range slices.Chunk(args, 2) {
 		key := utils.BStr(utils.CopyBytes(pair[0]))
 		value := utils.CopyBytes(pair[1])
-		pairs[key] = store.NewStringEntry(value, mo.None[time.Time]())
+		pairs[key] = store.NewStringEntry(value, dsa.None[time.Time]())
 	}
 
 	db.MSet(pairs)
@@ -496,7 +496,7 @@ func (cm *RespCommandManager) cmdDelEx(db *store.Database, args [][]byte) error 
 
 	key := utils.BStr(args[0])
 	condition := &SetCondition{
-		cmp_value: mo.None[[]byte](),
+		cmp_value: dsa.None[[]byte](),
 		kind:      SET_ALWAYS,
 	}
 
@@ -526,7 +526,7 @@ func (cm *RespCommandManager) cmdDelEx(db *store.Database, args [][]byte) error 
 		default:
 			return cm.WriteError(utils.ErrSyntaxError)
 		}
-		condition.cmp_value = mo.Some(operand)
+		condition.cmp_value = dsa.Some(operand)
 	} else {
 		return cm.WriteError(utils.ErrSyntaxError)
 	}
@@ -575,7 +575,7 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error 
 			if ttl.kind.IsSomeAnd(func(k SetTtlKind) bool { return k != SET_TTL_PERSIST }) {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
-			ttl.kind = mo.Some(SET_TTL_PERSIST)
+			ttl.kind = dsa.Some(SET_TTL_PERSIST)
 			ttl.action = SET_TTL_CLEAR
 			i += 1
 		} else {
@@ -628,7 +628,7 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error 
 	}
 
 	if ttl.action == SET_TTL_CLEAR {
-		entry.Ttl = mo.None[time.Time]()
+		entry.Ttl = dsa.None[time.Time]()
 	} else if ttl.action == SET_TTL_AT {
 		entry.Ttl = ttl.new_ttl
 	}
@@ -668,7 +668,7 @@ func (cm *RespCommandManager) cmdAppend(db *store.Database, args [][]byte) error
 	entry, ok := db.Get(key)
 	if !ok || entry.IsExpired(now) {
 		l := len(suffix)
-		db.Set(key, store.NewStringEntry(suffix, mo.None[time.Time]()))
+		db.Set(key, store.NewStringEntry(suffix, dsa.None[time.Time]()))
 		return cm.WriteInt(l)
 	}
 
@@ -780,7 +780,7 @@ func (cm *RespCommandManager) cmdSetRange(db *store.Database, args [][]byte) err
 	now := time.Now()
 	entry, ok := lives(db, key)
 	if !ok || entry.IsExpired(now) {
-		db.Set(key, store.NewStringEntry(fresh(), mo.None[time.Time]()))
+		db.Set(key, store.NewStringEntry(fresh(), dsa.None[time.Time]()))
 		return cm.WriteInt64(needed)
 	}
 

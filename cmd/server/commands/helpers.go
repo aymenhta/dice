@@ -3,9 +3,9 @@ package commands
 import (
 	"time"
 
+	"aymenhta.com/dice/internal/dsa"
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
-	"aymenhta.com/dice/internal/utils/mo"
 )
 
 func lives(db *store.Database, key string) (*store.Entry, bool) {
@@ -23,7 +23,7 @@ func lives(db *store.Database, key string) (*store.Entry, bool) {
 	return entry, true
 }
 
-func isCmdExpireAllowed(cond []byte, new_ttl time.Time, old_ttl mo.Option[time.Time]) (bool, error) {
+func isCmdExpireAllowed(cond []byte, new_ttl time.Time, old_ttl dsa.Option[time.Time]) (bool, error) {
 	if cond == nil || len(cond) == 0 {
 		return true, nil
 	}

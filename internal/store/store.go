@@ -3,26 +3,33 @@ package store
 import (
 	"time"
 
-	"aymenhta.com/dice/internal/utils/mo"
+	"aymenhta.com/dice/internal/dsa"
 )
 
 const DB_NUM = 16
 
 type Entry struct {
 	Value IEntryType
-	Ttl   mo.Option[time.Time]
+	Ttl   dsa.Option[time.Time]
 }
 
-func NewStringEntry(value []byte, ttl mo.Option[time.Time]) *Entry {
+func NewStringEntry(value []byte, ttl dsa.Option[time.Time]) *Entry {
 	return &Entry{
-		Value: &String{Value: value},
+		Value: &StringEntry{Value: value},
 		Ttl:   ttl,
 	}
 }
 
-func NewHashEntry(value map[string]*HashField, ttl mo.Option[time.Time]) *Entry {
+func NewHashEntry(value map[string]*HashField, ttl dsa.Option[time.Time]) *Entry {
 	return &Entry{
-		Value: &Hash{Value: value},
+		Value: &HashEntry{Value: value},
+		Ttl:   ttl,
+	}
+}
+
+func NewListEntry(value *dsa.Deque[[]byte], ttl dsa.Option[time.Time]) *Entry {
+	return &Entry{
+		Value: &ListEntry{Value: value},
 		Ttl:   ttl,
 	}
 }
@@ -35,30 +42,43 @@ func (e *Entry) IsExpired(now time.Time) bool {
 	return now.Equal(e.Ttl.OrEmpty()) || now.After(e.Ttl.OrEmpty())
 }
 
-func (e *Entry) AsStr() (*String, bool) {
+func (e *Entry) AsStr() (*StringEntry, bool) {
 	if e.Value.Kind() != STRING_KIND {
 		return nil, false
 	}
 
-	stringValue, ok := e.Value.(*String)
+	sv, ok := e.Value.(*StringEntry)
 	if !ok {
 		return nil, false
 	}
 
-	return stringValue, true
+	return sv, true
 }
 
-func (e *Entry) AsHash() (*Hash, bool) {
+func (e *Entry) AsHash() (*HashEntry, bool) {
 	if e.Value.Kind() != HASH_KIND {
 		return nil, false
 	}
 
-	hashValue, ok := e.Value.(*Hash)
+	hv, ok := e.Value.(*HashEntry)
 	if !ok {
 		return nil, false
 	}
 
-	return hashValue, true
+	return hv, true
+}
+
+func (e *Entry) AsList() (*ListEntry, bool) {
+	if e.Value.Kind() != LIST_KIND {
+		return nil, false
+	}
+
+	lv, ok := e.Value.(*ListEntry)
+	if !ok {
+		return nil, false
+	}
+
+	return lv, true
 }
 
 type Store struct {

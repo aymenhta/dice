@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"aymenhta.com/dice/internal/dsa"
 	"aymenhta.com/dice/internal/utils"
-	"aymenhta.com/dice/internal/utils/mo"
 )
 
 type Database struct {
@@ -82,7 +82,7 @@ func (db *Database) IncrByHashFields(key string, field string, delta int64, now 
 	if !ok || entry.IsExpired(now) {
 		h := make(map[string]*HashField)
 		h[field] = NewHashField(utils.Int64ToBytes(delta))
-		db.Body[key] = NewHashEntry(h, mo.None[time.Time]())
+		db.Body[key] = NewHashEntry(h, dsa.None[time.Time]())
 		return delta, nil
 	}
 
@@ -170,6 +170,32 @@ func (db *Database) Clear() {
 	db.Lock()
 	clear(db.Body)
 	defer db.Unlock()
+}
+
+func (db *Database) LPush(key string, elems [][]byte) (int, error) {
+	now := time.Now()
+	db.Lock()
+	defer db.Unlock()
+
+	e, ok := db.Body[key]
+	if !ok || e.IsExpired(now) {
+		var dq dsa.Deque[[]byte]
+		for _, el := range elems {
+			dq.PushFront(el)
+		}
+		db.Body[key] = NewListEntry(&dq, dsa.None[time.Time]())
+		return dq.Len(), nil
+	}
+
+	le, ok := e.AsList()
+	if !ok {
+		return -1, utils.ErrWrongTypeErr
+	}
+	for _, el := range elems {
+		le.Value.PushFront(el)
+	}
+
+	return le.Value.Len(), nil
 }
 
 func (db *Database) debugMap() {

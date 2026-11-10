@@ -6,9 +6,9 @@ import (
 	"slices"
 	"time"
 
+	"aymenhta.com/dice/internal/dsa"
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
-	"aymenhta.com/dice/internal/utils/mo"
 )
 
 /*
@@ -66,7 +66,7 @@ func (cm *RespCommandManager) cmdHSet(db *store.Database, args [][]byte) error {
 		// 	Value: &store.Hash{Value: hash},
 		// 	Ttl:   nil,
 		// })
-		db.Set(key, store.NewHashEntry(hash, mo.None[time.Time]()))
+		db.Set(key, store.NewHashEntry(hash, dsa.None[time.Time]()))
 		return cm.WriteInt64(added)
 	}
 
@@ -322,7 +322,7 @@ func hexpireCondFromBytes(s string) (HExpireCondition, error) {
 	}
 }
 
-func isHExpireAllowed(cond HExpireCondition, secs time.Time, old mo.Option[time.Time]) bool {
+func isHExpireAllowed(cond HExpireCondition, secs time.Time, old dsa.Option[time.Time]) bool {
 	switch cond {
 	case HEXPIRE_ALWAYS:
 		return true
@@ -460,7 +460,7 @@ func (mc *RespCommandManager) cmdHExpire(db *store.Database, rawArgs [][]byte) e
 			out = append(out, -2)
 			continue
 		}
-		oldTtl := mo.None[time.Time]()
+		oldTtl := dsa.None[time.Time]()
 		if fv.Ttl.IsSome() {
 			oldTtl = fv.Ttl
 		}
@@ -469,7 +469,7 @@ func (mc *RespCommandManager) cmdHExpire(db *store.Database, rawArgs [][]byte) e
 			continue
 		}
 
-		fv.Ttl = mo.Some(newTtl)
+		fv.Ttl = dsa.Some(newTtl)
 		out = append(out, 1)
 	}
 	db.Unlock()
