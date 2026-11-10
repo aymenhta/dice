@@ -198,6 +198,32 @@ func (db *Database) LPush(key string, elems [][]byte) (int, error) {
 	return le.Value.Len(), nil
 }
 
+func (db *Database) RPush(key string, elems [][]byte) (int, error) {
+	now := time.Now()
+	db.Lock()
+	defer db.Unlock()
+
+	e, ok := db.Body[key]
+	if !ok || e.IsExpired(now) {
+		var dq dsa.Deque[[]byte]
+		for _, el := range elems {
+			dq.PushBack(el)
+		}
+		db.Body[key] = NewListEntry(&dq, dsa.None[time.Time]())
+		return dq.Len(), nil
+	}
+
+	le, ok := e.AsList()
+	if !ok {
+		return -1, utils.ErrWrongTypeErr
+	}
+	for _, el := range elems {
+		le.Value.PushBack(el)
+	}
+
+	return le.Value.Len(), nil
+}
+
 func (db *Database) debugMap() {
 	println("====================================================")
 	fmt.Println("key -> value")

@@ -127,6 +127,11 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return cm.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return cm.cmdLPush(db, args)
+	case "rpush":
+		if len(args) < 2 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdRPush(db, args)
 
 	// general commands
 	case "ping":
