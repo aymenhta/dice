@@ -242,3 +242,24 @@ func (mc *RespCommandManager) cmdLIndex(db *store.Database, args [][]byte) error
 	}
 	return mc.WriteBytes(v)
 }
+
+func (mc *RespCommandManager) cmdLRem(db *store.Database, args [][]byte) error {
+	key := utils.BStr(args[0])
+	count, err := utils.ParseInt64(args[1])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+
+	r, err := db.LRem(key, int(count), args[2])
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrWrongTypeErr):
+			return mc.WriteWrongTypeError()
+		case errors.Is(err, utils.ErrRecordDoesntExist):
+			return mc.WriteInt64(0)
+		default:
+			return mc.WriteError(err)
+		}
+	}
+	return mc.WriteInt(r)
+}

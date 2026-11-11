@@ -146,6 +146,71 @@ func (d *Deque[T]) At(index int) (T, bool) {
 	return curr.value, true
 }
 
+// RemoveOcc removes occurrences of elements equal to 'element' based on 'count':
+//   - count > 0: Remove elements moving from head to tail.
+//   - count < 0: Remove elements moving from tail to head.
+//   - count = 0: Remove all elements equal to element.
+//
+// Returns the number of elements removed.
+// Time Complexity: O(N)
+func (d *Deque[T]) RemoveOcc(count int, matchFn func(T) bool) int {
+	if d.size == 0 {
+		return 0
+	}
+
+	removed := 0
+
+	if count > 0 {
+		curr := d.head
+		for curr != nil && removed < count {
+			next := curr.next
+			if matchFn(curr.value) {
+				d.removeNode(curr)
+				removed++
+			}
+			curr = next
+		}
+	} else if count < 0 {
+		target := -count
+		curr := d.tail
+		for curr != nil && removed < target {
+			prev := curr.prev
+			if matchFn(curr.value) {
+				d.removeNode(curr)
+				removed++
+			}
+			curr = prev
+		}
+	} else {
+		curr := d.head
+		for curr != nil {
+			next := curr.next
+			if matchFn(curr.value) {
+				d.removeNode(curr)
+				removed++
+			}
+			curr = next
+		}
+	}
+
+	return removed
+}
+
+func (d *Deque[T]) removeNode(curr *node[T]) {
+	if curr.prev != nil {
+		curr.prev.next = curr.next
+	} else {
+		d.head = curr.next
+	}
+
+	if curr.next != nil {
+		curr.next.prev = curr.prev
+	} else {
+		d.tail = curr.prev
+	}
+	d.size--
+}
+
 // Slice extracts a sub-range [start, end) from the deque as a standard Go slice.
 // Panics if indices are out of bounds, matching native Go slice behavior.
 // Time Complexity: O(N)

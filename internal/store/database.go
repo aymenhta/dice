@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"time"
@@ -251,13 +252,8 @@ func (db *Database) LPop(key string, count dsa.Option[int64]) ([][]byte, error) 
 	db.Lock()
 	defer db.Unlock()
 
-	e, ok := db.Body[key]
+	e, ok := db.getOrExpire(key, now)
 	if !ok {
-		return nil, utils.ErrRecordDoesntExist
-	}
-
-	if e.IsExpired(now) {
-		delete(db.Body, key)
 		return nil, utils.ErrRecordDoesntExist
 	}
 
@@ -291,13 +287,8 @@ func (db *Database) RPop(key string, count dsa.Option[int64]) ([][]byte, error) 
 	db.Lock()
 	defer db.Unlock()
 
-	e, ok := db.Body[key]
+	e, ok := db.getOrExpire(key, now)
 	if !ok {
-		return nil, utils.ErrRecordDoesntExist
-	}
-
-	if e.IsExpired(now) {
-		delete(db.Body, key)
 		return nil, utils.ErrRecordDoesntExist
 	}
 
@@ -324,6 +315,29 @@ func (db *Database) RPop(key string, count dsa.Option[int64]) ([][]byte, error) 
 
 	x, _ := le.Value.PopBack()
 	return [][]byte{x}, nil
+}
+
+func (db *Database) LRem(key string, count int, elem []byte) (int, error) {
+	now := time.Now()
+	db.Lock()
+	defer db.Unlock()
+
+	e, ok := db.getOrExpire(key, now)
+	if !ok {
+		return 0, utils.ErrRecordDoesntExist
+	}
+
+	le, ok := e.AsList()
+	if !ok {
+		return 0, utils.ErrWrongTypeErr
+	}
+
+	if le.Value.IsEmpty() {
+		return 0, utils.ErrRecordDoesntExist
+	}
+
+	r := le.Value.RemoveOcc(count, func(v []byte) bool { return bytes.Equal(v, elem) })
+	return r, nil
 }
 
 func (db *Database) debugMap() {
