@@ -132,6 +132,16 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return cm.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return cm.cmdRPush(db, args)
+	case "lpushx":
+		if len(args) < 2 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdLPushx(db, args)
+	case "rpushx":
+		if len(args) < 2 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdRPushx(db, args)
 	case "lpop":
 		if len(args) < 1 || len(args) > 2 {
 			return cm.WriteError(utils.WrongArgsNum(cmd))

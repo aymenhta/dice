@@ -16,7 +16,7 @@ func (mc *RespCommandManager) cmdLPush(db *store.Database, args [][]byte) error 
 		elems = append(elems, utils.CopyBytes(v))
 	}
 
-	n, err := db.LPush(key, elems)
+	n, err := db.LPush(key, elems, false)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrWrongTypeErr):
@@ -36,7 +36,47 @@ func (mc *RespCommandManager) cmdRPush(db *store.Database, args [][]byte) error 
 		elems = append(elems, utils.CopyBytes(v))
 	}
 
-	n, err := db.RPush(key, elems)
+	n, err := db.RPush(key, elems, false)
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrWrongTypeErr):
+			return mc.WriteWrongTypeError()
+		default:
+			return mc.WriteError(err)
+		}
+	}
+
+	return mc.WriteInt(n)
+}
+
+func (mc *RespCommandManager) cmdLPushx(db *store.Database, args [][]byte) error {
+	key := utils.BStr(utils.CopyBytes(args[0]))
+	elems := make([][]byte, 0, len(args)-1)
+	for _, v := range args[1:] {
+		elems = append(elems, utils.CopyBytes(v))
+	}
+
+	n, err := db.LPush(key, elems, true)
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrWrongTypeErr):
+			return mc.WriteWrongTypeError()
+		default:
+			return mc.WriteError(err)
+		}
+	}
+
+	return mc.WriteInt(n)
+}
+
+func (mc *RespCommandManager) cmdRPushx(db *store.Database, args [][]byte) error {
+	key := utils.BStr(utils.CopyBytes(args[0]))
+	elems := make([][]byte, 0, len(args)-1)
+	for _, v := range args[1:] {
+		elems = append(elems, utils.CopyBytes(v))
+	}
+
+	n, err := db.RPush(key, elems, true)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrWrongTypeErr):
@@ -147,7 +187,9 @@ func (mc *RespCommandManager) cmdLRange(db *store.Database, args [][]byte) error
 		return mc.WriteEmptyArray()
 	}
 
-	return mc.WriteArrayBytes(le.Value.Slice(s, e))
+	// fmt.Printf("getting bytes(start: %v, end: %v): %+v\n", s, e, le.Value.Slice(s, e))
+
+	return mc.WriteArrayBytes(le.Value.Slice(int(s), int(e+1)))
 }
 
 func (mc *RespCommandManager) cmdLLen(db *store.Database, args [][]byte) error {
@@ -187,15 +229,16 @@ func (mc *RespCommandManager) cmdLIndex(db *store.Database, args [][]byte) error
 	len := le.Value.Len()
 
 	if index < 0 {
-		index = len + index
-		if index < 0 {
+		v, ok := le.Value.At(len + index)
+		if !ok {
 			return mc.WriteNullString()
 		}
-		return mc.WriteBytes(le.Value.At(index))
+		return mc.WriteBytes(v)
 	}
 
-	if index > len {
+	v, ok := le.Value.At(index)
+	if !ok {
 		return mc.WriteNullString()
 	}
-	return mc.WriteBytes(le.Value.At(index))
+	return mc.WriteBytes(v)
 }

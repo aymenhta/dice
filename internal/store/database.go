@@ -33,6 +33,22 @@ func (db *Database) Get(key string) (*Entry, bool) {
 	return v, ok
 }
 
+// not safe for concurrent access
+func (db *Database) getOrExpire(key string, t time.Time) (*Entry, bool) {
+	entry, exists := db.Body[key]
+	if !exists {
+		return nil, false
+	}
+
+	if entry.IsExpired(t) {
+		// it's expired, remove it
+		delete(db.Body, key)
+		return nil, false
+	}
+
+	return entry, true
+}
+
 func (db *Database) Remove(key string) {
 	db.Lock()
 	delete(db.Body, key)
@@ -172,13 +188,16 @@ func (db *Database) Clear() {
 	defer db.Unlock()
 }
 
-func (db *Database) LPush(key string, elems [][]byte) (int, error) {
+func (db *Database) LPush(key string, elems [][]byte, mustExists bool) (int, error) {
 	now := time.Now()
 	db.Lock()
 	defer db.Unlock()
 
-	e, ok := db.Body[key]
-	if !ok || e.IsExpired(now) {
+	e, ok := db.getOrExpire(key, now)
+	if !ok {
+		if mustExists {
+			return 0, nil
+		}
 		var dq dsa.Deque[[]byte]
 		for _, el := range elems {
 			dq.PushFront(el)
@@ -198,13 +217,16 @@ func (db *Database) LPush(key string, elems [][]byte) (int, error) {
 	return le.Value.Len(), nil
 }
 
-func (db *Database) RPush(key string, elems [][]byte) (int, error) {
+func (db *Database) RPush(key string, elems [][]byte, mustExists bool) (int, error) {
 	now := time.Now()
 	db.Lock()
 	defer db.Unlock()
 
-	e, ok := db.Body[key]
-	if !ok || e.IsExpired(now) {
+	e, ok := db.getOrExpire(key, now)
+	if !ok {
+		if mustExists {
+			return 0, nil
+		}
 		var dq dsa.Deque[[]byte]
 		for _, el := range elems {
 			dq.PushBack(el)
@@ -253,13 +275,15 @@ func (db *Database) LPop(key string, count dsa.Option[int64]) ([][]byte, error) 
 		response := make([][]byte, 0, c)
 		i := int64(0)
 		for !le.Value.IsEmpty() && i < c {
-			response = append(response, le.Value.PopFront())
+			x, _ := le.Value.PopFront()
+			response = append(response, x)
 			i += 1
 		}
 		return response, nil
 	}
 
-	return [][]byte{le.Value.PopFront()}, nil
+	x, _ := le.Value.PopFront()
+	return [][]byte{x}, nil
 }
 
 func (db *Database) RPop(key string, count dsa.Option[int64]) ([][]byte, error) {
@@ -291,13 +315,15 @@ func (db *Database) RPop(key string, count dsa.Option[int64]) ([][]byte, error) 
 		response := make([][]byte, 0, c)
 		i := int64(0)
 		for !le.Value.IsEmpty() && i < c {
-			response = append(response, le.Value.PopBack())
+			x, _ := le.Value.PopBack()
+			response = append(response, x)
 			i += 1
 		}
 		return response, nil
 	}
 
-	return [][]byte{le.Value.PopBack()}, nil
+	x, _ := le.Value.PopBack()
+	return [][]byte{x}, nil
 }
 
 func (db *Database) debugMap() {
