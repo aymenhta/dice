@@ -146,6 +146,29 @@ func (d *Deque[T]) At(index int) (T, bool) {
 	return curr.value, true
 }
 
+// set the new value at the requested index, return false if index is out of bound
+func (d *Deque[T]) SetAt(index int, elem T) bool {
+	if index < 0 || index >= d.size {
+		return false
+	}
+
+	var curr *node[T]
+	// Traverse from the head if closer, or from the tail if closer
+	if index < d.size/2 {
+		curr = d.head
+		for i := 0; i < index; i++ {
+			curr = curr.next
+		}
+	} else {
+		curr = d.tail
+		for i := d.size - 1; i > index; i-- {
+			curr = curr.prev
+		}
+	}
+	curr.value = elem
+	return true
+}
+
 // RemoveOcc removes occurrences of elements equal to 'element' based on 'count':
 //   - count > 0: Remove elements moving from head to tail.
 //   - count < 0: Remove elements moving from tail to head.

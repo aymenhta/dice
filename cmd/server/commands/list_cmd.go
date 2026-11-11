@@ -108,7 +108,7 @@ func (mc *RespCommandManager) cmdLPop(db *store.Database, args [][]byte) error {
 		switch {
 		case errors.Is(err, utils.ErrWrongTypeErr):
 			return mc.WriteWrongTypeError()
-		case errors.Is(err, utils.ErrRecordDoesntExist):
+		case errors.Is(err, utils.ErrNoSuchKey):
 			return mc.WriteNullString()
 		default:
 			return mc.WriteError(err)
@@ -144,7 +144,7 @@ func (mc *RespCommandManager) cmdRPop(db *store.Database, args [][]byte) error {
 		switch {
 		case errors.Is(err, utils.ErrWrongTypeErr):
 			return mc.WriteWrongTypeError()
-		case errors.Is(err, utils.ErrRecordDoesntExist):
+		case errors.Is(err, utils.ErrNoSuchKey):
 			return mc.WriteNullString()
 		default:
 			return mc.WriteError(err)
@@ -255,11 +255,34 @@ func (mc *RespCommandManager) cmdLRem(db *store.Database, args [][]byte) error {
 		switch {
 		case errors.Is(err, utils.ErrWrongTypeErr):
 			return mc.WriteWrongTypeError()
-		case errors.Is(err, utils.ErrRecordDoesntExist):
+		case errors.Is(err, utils.ErrNoSuchKey):
 			return mc.WriteInt64(0)
 		default:
 			return mc.WriteError(err)
 		}
 	}
 	return mc.WriteInt(r)
+}
+
+func (mc *RespCommandManager) cmdLSet(db *store.Database, args [][]byte) error {
+	defer func() { fmt.Printf("executed command lset\n") }()
+
+	key := utils.BStr(args[0])
+	index, err := utils.ParseInt64(args[1])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+	elem := utils.CopyBytes(args[2])
+
+	err = db.LSet(key, int(index), elem)
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrWrongTypeErr):
+			return mc.WriteWrongTypeError()
+		default:
+			return mc.WriteError(err)
+		}
+	}
+
+	return mc.WriteOK()
 }
