@@ -423,6 +423,28 @@ func (db *Database) LMove(sk, dk, from, to string) ([]byte, error) {
 	return sv, nil
 }
 
+func (db *Database) LTrim(k string, start, stop int) error {
+	now := time.Now()
+	db.Lock()
+	defer db.Unlock()
+
+	e, ok := db.getOrExpire(k, now)
+	if !ok {
+		return nil
+	}
+
+	l, ok := e.AsList()
+	if !ok {
+		return utils.ErrWrongTypeErr
+	}
+
+	l.Value.Trim(start, stop)
+	if l.Value.IsEmpty() {
+		delete(db.Body, k)
+	}
+	return nil
+}
+
 func (db *Database) debugMap() {
 	println("====================================================")
 	fmt.Println("key -> value")

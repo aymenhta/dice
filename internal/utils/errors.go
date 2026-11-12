@@ -12,6 +12,6 @@ var (
 	ErrNotInt                      = errors.New("value is not an integer or out of range")
 	ErrIncrDecrOverflow            = errors.New("increment or decrement would overflow")
 	ErrWrongTypeErr                = errors.New("Operation against a key holding the wrong kind of value")
-	ErrNoSuchKey           = errors.New("no such key")
+	ErrNoSuchKey                   = errors.New("no such key")
 	ErrIndexOutOfRange             = errors.New("index out of range")
 )

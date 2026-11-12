@@ -324,3 +324,26 @@ func (mc *RespCommandManager) cmdLMove(db *store.Database, args [][]byte) error 
 
 	return mc.WriteBytes(b)
 }
+
+func (mc *RespCommandManager) cmdLTrim(db *store.Database, args [][]byte) error {
+	key := utils.BStr(args[0])
+	start, err := utils.ParseInt64(args[1])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+	stop, err := utils.ParseInt64(args[2])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+
+	if err := db.LTrim(key, int(start), int(stop)); err != nil {
+		switch {
+		case errors.Is(err, utils.ErrWrongTypeErr):
+			return mc.WriteWrongTypeError()
+		default:
+			return mc.WriteError(err)
+		}
+	}
+
+	return mc.WriteOK()
+}

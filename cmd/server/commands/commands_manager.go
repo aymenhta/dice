@@ -182,6 +182,11 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return cm.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return cm.cmdLMove(db, args)
+	case "ltrim":
+		if len(args) != 3 {
+			return cm.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return cm.cmdLTrim(db, args)
 
 	// general commands
 	case "ping":

@@ -126,3 +126,91 @@ func TestSlice(t *testing.T) {
 		})
 	}
 }
+
+func TestDeque_Trim(t *testing.T) {
+	// Helper function to quickly populate a deque
+	setupDeque := func(items []int) *Deque[int] {
+		d := NewDeque[int]()
+		for _, item := range items {
+			d.PushBack(item)
+		}
+		return d
+	}
+
+	t.Run("Normal positive range", func(t *testing.T) {
+		d := setupDeque([]int{10, 20, 30, 40, 50})
+		d.Trim(1, 3) // Should keep indices 1, 2, 3 (values 20, 30, 40)
+
+		expected := []int{20, 30, 40}
+		if got := d.ToSlice(); !reflect.DeepEqual(got, expected) {
+			t.Errorf("got %v, want %v", got, expected)
+		}
+		if d.Len() != 3 {
+			t.Errorf("got length %d, want 3", d.Len())
+		}
+	})
+
+	t.Run("Negative indices", func(t *testing.T) {
+		d := setupDeque([]int{10, 20, 30, 40, 50})
+		// -4 points to index 1 (20), -2 points to index 3 (40)
+		d.Trim(-4, -2)
+
+		expected := []int{20, 30, 40}
+		if got := d.ToSlice(); !reflect.DeepEqual(got, expected) {
+			t.Errorf("got %v, want %v", got, expected)
+		}
+	})
+
+	t.Run("Stop index out of bounds (treated as last element)", func(t *testing.T) {
+		d := setupDeque([]int{10, 20, 30, 40, 50})
+		d.Trim(2, 100) // Stop exceeds size, should clamp to last element (index 4)
+
+		expected := []int{30, 40, 50}
+		if got := d.ToSlice(); !reflect.DeepEqual(got, expected) {
+			t.Errorf("got %v, want %v", got, expected)
+		}
+	})
+
+	t.Run("Start index larger than stop (results in empty list)", func(t *testing.T) {
+		d := setupDeque([]int{10, 20, 30, 40, 50})
+		d.Trim(3, 1) // start > stop
+
+		if !d.IsEmpty() {
+			t.Errorf("expected empty deque, got length %d", d.Len())
+		}
+		if len(d.ToSlice()) != 0 {
+			t.Errorf("got slice %v, want empty slice", d.ToSlice())
+		}
+	})
+
+	t.Run("Start index completely out of bounds", func(t *testing.T) {
+		d := setupDeque([]int{10, 20, 30, 40, 50})
+		d.Trim(10, 15) // start >= size
+
+		if !d.IsEmpty() {
+			t.Errorf("expected empty deque, got length %d", d.Len())
+		}
+	})
+
+	t.Run("Trim empty deque", func(t *testing.T) {
+		d := NewDeque[int]()
+		d.Trim(0, 2) // Should handle gracefully without panicking
+
+		if !d.IsEmpty() {
+			t.Errorf("expected empty deque, got length %d", d.Len())
+		}
+	})
+
+	t.Run("Trim single element deque", func(t *testing.T) {
+		d := setupDeque([]int{42})
+		d.Trim(0, 0)
+
+		expected := []int{42}
+		if got := d.ToSlice(); !reflect.DeepEqual(got, expected) {
+			t.Errorf("got %v, want %v", got, expected)
+		}
+		if d.Len() != 1 {
+			t.Errorf("got length %d, want 1", d.Len())
+		}
+	})
+}

@@ -121,61 +121,88 @@ func (d *Deque[T]) ToSlice() []T {
 	return result
 }
 
+// getNode is an internal helper that traverses from head or tail depending on index proximity.
+func (d *Deque[T]) getNode(index int) *node[T] {
+	var curr *node[T]
+	if index < d.size/2 {
+		curr = d.head
+		for i := 0; i < index; i++ {
+			curr = curr.next
+		}
+	} else {
+		curr = d.tail
+		for i := d.size - 1; i > index; i-- {
+			curr = curr.prev
+		}
+	}
+	return curr
+}
+
 // At returns the value at the specified zero-based index.
-// Returns the value and true if successful, or the zero value and false if out of bounds.
-// Time Complexity: O(N/2) - optimized to traverse from head or tail depending on index position.
+// Time Complexity: O(N/2)
 func (d *Deque[T]) At(index int) (T, bool) {
 	if index < 0 || index >= d.size {
 		var zero T
 		return zero, false
 	}
-
-	var curr *node[T]
-	// Traverse from the head if closer, or from the tail if closer
-	if index < d.size/2 {
-		curr = d.head
-		for i := 0; i < index; i++ {
-			curr = curr.next
-		}
-	} else {
-		curr = d.tail
-		for i := d.size - 1; i > index; i-- {
-			curr = curr.prev
-		}
-	}
-	return curr.value, true
+	return d.getNode(index).value, true
 }
 
-// set the new value at the requested index, return false if index is out of bound
+// SetAt sets the new value at the requested index, returning false if out of bounds.
 func (d *Deque[T]) SetAt(index int, elem T) bool {
 	if index < 0 || index >= d.size {
 		return false
 	}
-
-	var curr *node[T]
-	// Traverse from the head if closer, or from the tail if closer
-	if index < d.size/2 {
-		curr = d.head
-		for i := 0; i < index; i++ {
-			curr = curr.next
-		}
-	} else {
-		curr = d.tail
-		for i := d.size - 1; i > index; i-- {
-			curr = curr.prev
-		}
-	}
-	curr.value = elem
+	d.getNode(index).value = elem
 	return true
 }
 
-// RemoveOcc removes occurrences of elements equal to 'element' based on 'count':
-//   - count > 0: Remove elements moving from head to tail.
-//   - count < 0: Remove elements moving from tail to head.
-//   - count = 0: Remove all elements equal to element.
-//
-// Returns the number of elements removed.
+// Trim modifies the deque so that it contains only the elements within the specified
+// inclusive zero-based range [start, stop]. Supports negative indexing (-1 is the last element).
 // Time Complexity: O(N)
+func (d *Deque[T]) Trim(start, stop int) {
+	if d.size == 0 {
+		return
+	}
+
+	// Handle negative indices
+	if start < 0 {
+		start += d.size
+		if start < 0 {
+			start = 0
+		}
+	}
+	if stop < 0 {
+		stop += d.size
+	}
+
+	// If stop is larger than the end of the list, treat it as the last element
+	if stop >= d.size {
+		stop = d.size - 1
+	}
+
+	// If start is larger than stop or out of bounds, result is an empty list
+	if start >= d.size || stop < 0 || start > stop {
+		d.head = nil
+		d.tail = nil
+		d.size = 0
+		return
+	}
+
+	// Locate the new boundaries
+	startNode := d.getNode(start)
+	endNode := d.getNode(stop)
+
+	// Detach nodes outside the range
+	startNode.prev = nil
+	endNode.next = nil
+
+	d.head = startNode
+	d.tail = endNode
+	d.size = stop - start + 1
+}
+
+// RemoveOcc removes occurrences of elements matching 'matchFn' based on 'count'.
 func (d *Deque[T]) RemoveOcc(count int, matchFn func(T) bool) int {
 	if d.size == 0 {
 		return 0
@@ -235,8 +262,6 @@ func (d *Deque[T]) removeNode(curr *node[T]) {
 }
 
 // Slice extracts a sub-range [start, end) from the deque as a standard Go slice.
-// Panics if indices are out of bounds, matching native Go slice behavior.
-// Time Complexity: O(N)
 func (d *Deque[T]) Slice(start, end int) []T {
 	if start < 0 || end > d.size || start > end {
 		panic("deque: slice bounds out of range")
@@ -245,12 +270,10 @@ func (d *Deque[T]) Slice(start, end int) []T {
 	result := make([]T, 0, end-start)
 	curr := d.head
 
-	// Fast-forward to the start index
 	for i := 0; i < start; i++ {
 		curr = curr.next
 	}
 
-	// Collect elements up to the end index
 	for i := start; i < end; i++ {
 		result = append(result, curr.value)
 		curr = curr.next
