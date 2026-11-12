@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -125,10 +126,10 @@ func convertSecsToMillis(kind SetTtlKind, n int64, cmd string) (int64, error) {
 }
 
 func calculateDeadline(kind SetTtlKind, ms int64, cmd string) (dsa.Option[time.Time], error) {
-	switch {
-	case kind == SET_TTL_EX || kind == SET_TTL_PX:
+	switch kind {
+	case SET_TTL_EX, SET_TTL_PX:
 		return dsa.Some(time.Now().Add(time.Duration(ms) * time.Millisecond)), nil
-	case kind == SET_TTL_EXAT || kind == SET_TTL_PXAT:
+	case SET_TTL_EXAT, SET_TTL_PXAT:
 		return dsa.Some(utils.UnixMsToInstant(ms)), nil
 	default:
 		return dsa.None[time.Time](), utils.InvalidExpire(cmd)
@@ -180,19 +181,20 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 	i := 2
 	for i < len(args) {
 		option := utils.BStr(utils.BytesToLower(args[i]))
-		if option == "xx" {
+		switch option {
+		case "xx":
 			if cond.kind != SET_ALWAYS && cond.kind != SET_XX {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_XX
 			i = i + 1
-		} else if option == "nx" {
+		case "nx":
 			if cond.kind != SET_ALWAYS && cond.kind != SET_NX {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
 			cond.kind = SET_NX
 			i = i + 1
-		} else if option == "ifeq" {
+		case "ifeq":
 			if cond.kind != SET_ALWAYS {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
@@ -202,7 +204,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 			cond.kind = SET_IFEQ
 			cond.cmp_value = dsa.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
-		} else if option == "ifne" {
+		case "ifne":
 			if cond.kind != SET_ALWAYS {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
@@ -212,7 +214,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 			cond.kind = SET_IFNE
 			cond.cmp_value = dsa.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
-		} else if option == "ifdeq" {
+		case "ifdeq":
 			if cond.kind != SET_ALWAYS {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
@@ -222,7 +224,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 			cond.kind = SET_IFDEQ
 			cond.cmp_value = dsa.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
-		} else if option == "ifdne" {
+		case "ifdne":
 			if cond.kind != SET_ALWAYS {
 				return cm.WriteError(utils.ErrSyntaxError)
 			}
@@ -232,10 +234,10 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 			cond.kind = SET_IFDNE
 			cond.cmp_value = dsa.Some(utils.CopyBytes(args[i+1]))
 			i = i + 2
-		} else if option == "get" {
+		case "get":
 			get = true
 			i = i + 1
-		} else if option == "keepttl" {
+		case "keepttl":
 			// if ttl.kind != nil && *ttl.kind != SET_TTL_KEEPTTL {
 			// 	return cm.WriteError(utils.ErrSyntaxError)
 			// }
@@ -245,7 +247,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 			ttl.kind = dsa.Some(SET_TTL_KEEPTTL)
 			ttl.action = SET_TTL_KEEP
 			i = i + 1
-		} else {
+		default:
 			kind := ttl_value_option(option)
 			if kind.IsSome() {
 				if i+1 >= len(args) {
@@ -327,12 +329,13 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 
 	// Response building
 	if get {
-		return cm.WriteBytes(old)
+		return cm.WriteBytes2(old)
 	} else if didSet {
 		return cm.WriteSimpleString("OK")
 	} else {
 		return cm.WriteNullString()
 	}
+
 }
 
 func (cm *RespCommandManager) cmdGet(db *store.Database, args [][]byte) error {
@@ -477,12 +480,8 @@ func (cm *RespCommandManager) cmdGetDel(db *store.Database, args [][]byte) error
 
 	key := utils.BStr(args[0])
 	value, exists, strTyped := db.GetAndRemove(key)
-	if !exists {
+	if !exists || !strTyped {
 		return cm.WriteNullString()
-	}
-
-	if !strTyped {
-		return cm.WriteWrongTypeError()
 	}
 
 	return cm.WriteBytes(value)
@@ -542,14 +541,16 @@ func (cm *RespCommandManager) cmdDelEx(db *store.Database, args [][]byte) error 
 		return cm.WriteInt64(0)
 	}
 
-	strEntry, tok := entry.AsStr()
-	if !tok {
-		return cm.WriteWrongTypeError()
-	}
+	if condition.needs_value() {
+		strEntry, tok := entry.AsStr()
+		if !tok { // only string values are allowed to be compared
+			return cm.WriteError(errors.New("Key should be of string type if conditions are specified"))
+		}
 
-	allowed := condition.cond_allows(strEntry.Value)
-	if !allowed {
-		return cm.WriteInt64(0)
+		allowed := condition.cond_allows(strEntry.Value)
+		if !allowed {
+			return cm.WriteInt64(0)
+		}
 	}
 
 	db.Remove(key)
