@@ -628,9 +628,10 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error 
 		return cm.WriteWrongTypeError()
 	}
 
-	if ttl.action == SET_TTL_CLEAR {
+	switch ttl.action {
+	case SET_TTL_CLEAR:
 		entry.Ttl = dsa.None[time.Time]()
-	} else if ttl.action == SET_TTL_AT {
+	case SET_TTL_AT:
 		entry.Ttl = ttl.new_ttl
 	}
 
@@ -699,7 +700,7 @@ func (cm *RespCommandManager) cmdDigest(db *store.Database, args [][]byte) error
 	key := utils.BStr(args[0])
 	entry, ok := lives(db, key)
 	if !ok {
-		return cm.WriteNullString()
+		return cm.WriteExplicitNullString()
 	}
 
 	strEntry, tok := entry.AsStr()
