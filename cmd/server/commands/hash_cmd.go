@@ -62,13 +62,12 @@ func (cm *RespCommandManager) cmdHSet(db *store.Database, args [][]byte) error {
 	entry, ok := db.Get(key)
 	if !ok || entry.IsExpired(now) {
 		hash, added := buildHash(pairs)
-		// db.Set(key, &store.Entry{
-		// 	Value: &store.Hash{Value: hash},
-		// 	Ttl:   nil,
-		// })
 		db.Set(key, store.NewHashEntry(hash, dsa.None[time.Time]()))
 		return cm.WriteInt64(added)
 	}
+
+	db.Lock()
+	defer db.Unlock()
 
 	hashEntry, tok := entry.AsHash()
 	if !tok {
@@ -83,6 +82,7 @@ func (cm *RespCommandManager) cmdHSet(db *store.Database, args [][]byte) error {
 			added += 1
 		}
 	}
+
 	return cm.WriteInt(added)
 }
 
@@ -100,6 +100,8 @@ func (cm *RespCommandManager) cmdHGet(db *store.Database, args [][]byte) error {
 		return cm.WriteNullString()
 	}
 
+	db.Lock()
+	defer db.Unlock()
 	hashEntry, tok := entry.AsHash()
 	if !tok {
 		return cm.WriteWrongTypeError()
@@ -132,18 +134,29 @@ func (cm *RespCommandManager) cmdHGetAll(db *store.Database, args [][]byte) erro
 	}
 
 	now := time.Now()
-	out := make([][]byte, 0, len(hashE.Value)*2)
 	db.Lock()
+	defer db.Unlock()
+	if cm.RESP2Compat() {
+		out := make([][]byte, 0, len(hashE.Value)*2)
+		for field, value := range hashE.Value {
+			if value.IsExpired(now) {
+				delete(hashE.Value, field)
+				continue
+			}
+			out = append(out, utils.StrB(field))
+			out = append(out, value.Value)
+		}
+		return cm.WriteArrayBytes(out)
+	}
+	out := make(map[string][]byte)
 	for field, value := range hashE.Value {
 		if value.IsExpired(now) {
 			delete(hashE.Value, field)
 			continue
 		}
-		out = append(out, utils.StrB(field))
-		out = append(out, value.Value)
+		out[field] = value.Value
 	}
-	db.Unlock()
-	return cm.WriteArrayBytes(out)
+	return cm.WriteMapBytes(out)
 }
 
 // HDEL key field [field ...] -> how many of those fields were removed.
@@ -177,6 +190,8 @@ func (mc *RespCommandManager) cmdHExists(db *store.Database, args [][]byte) erro
 		return mc.WriteInt64(0)
 	}
 
+	db.Lock()
+	defer db.Unlock()
 	hashE, ok := entry.AsHash()
 	if !ok {
 		return mc.WriteWrongTypeError()
@@ -466,6 +481,11 @@ func (mc *RespCommandManager) cmdHExpire(db *store.Database, rawArgs [][]byte) e
 		}
 		if !isHExpireAllowed(args.condition, newTtl, oldTtl) {
 			out = append(out, 0)
+			continue
+		}
+
+		if args.seconds == 0 {
+			out = append(out, 2)
 			continue
 		}
 
