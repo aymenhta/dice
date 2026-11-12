@@ -265,8 +265,6 @@ func (mc *RespCommandManager) cmdLRem(db *store.Database, args [][]byte) error {
 }
 
 func (mc *RespCommandManager) cmdLSet(db *store.Database, args [][]byte) error {
-	defer func() { fmt.Printf("executed command lset\n") }()
-
 	key := utils.BStr(args[0])
 	index, err := utils.ParseInt64(args[1])
 	if err != nil {

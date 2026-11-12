@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"strconv"
 
+	"aymenhta.com/dice/internal/dsa"
 	"aymenhta.com/dice/internal/resp/doublebuffer"
 	"aymenhta.com/dice/internal/resp/static"
 	"aymenhta.com/dice/internal/resp/types"
@@ -40,18 +41,18 @@ type RespReadWriter struct {
 
 type RespReadWriterOpts struct {
 	// MaxMultiBulkLength sets the maximum number of elements in a multi-bulk command request.
-	MaxMultiBulkLength *int
+	MaxMultiBulkLength dsa.Option[int]
 
 	// MaxBulkLength sets the maximum length of a bulk string in bytes.
-	MaxBulkLength *int
+	MaxBulkLength dsa.Option[int]
 
 	// MaxBufferSize sets the maximum size of the buffer used to read full commands from the client.
-	MaxBufferSize *int
+	MaxBufferSize dsa.Option[int]
 
 	// RESP2Compat sets the RESP2 compatibility mode of the incoming connection.
 	// This mode is useful when talking with a RESP2 client that does not support the new RESP3 types.
 	// In this mode, Write functions will convert RESP3 types to RESP2 types where possible.
-	RESP2Compat *bool
+	RESP2Compat dsa.Option[bool]
 }
 
 // NewClientHandler returns a new wrapped incoming connection with sane default parameters set.
@@ -83,17 +84,17 @@ func (x *RespReadWriter) Reset(rw io.ReadWriter) {
 
 // SetOptions sets the options for the incoming connection.
 func (x *RespReadWriter) SetOptions(opts RespReadWriterOpts) error {
-	if opts.MaxMultiBulkLength != nil {
-		x.maxMultiBulkLength = *opts.MaxMultiBulkLength
+	if opts.MaxMultiBulkLength.IsSome() {
+		x.maxMultiBulkLength = opts.MaxMultiBulkLength.OrEmpty()
 	}
-	if opts.MaxBulkLength != nil {
-		x.maxBulkLength = *opts.MaxBulkLength
+	if opts.MaxBulkLength.IsSome() {
+		x.maxBulkLength = opts.MaxBulkLength.OrEmpty()
 	}
-	if opts.MaxBufferSize != nil {
-		x.maxBufferSize = *opts.MaxBufferSize
+	if opts.MaxBufferSize.IsSome() {
+		x.maxBufferSize = opts.MaxBufferSize.OrEmpty()
 	}
-	if opts.RESP2Compat != nil {
-		x.resp2compat = *opts.RESP2Compat
+	if opts.RESP2Compat.IsSome() {
+		x.resp2compat = opts.RESP2Compat.OrEmpty()
 	}
 	return nil
 }

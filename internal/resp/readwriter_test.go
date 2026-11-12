@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"aymenhta.com/dice/internal/dsa"
 	"aymenhta.com/dice/internal/utils"
 )
 
@@ -194,9 +195,9 @@ func TestClientHandlerLimits(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("*1\r\n$3\r\nfoo\r\n"))
 		defer handler.Close()
 		handler.SetOptions(RespReadWriterOpts{
-			MaxMultiBulkLength: utils.Pointer(1),
-			MaxBulkLength:      utils.Pointer(3),
-			MaxBufferSize:      utils.Pointer(5),
+			MaxMultiBulkLength: dsa.Some(1),
+			MaxBulkLength:      dsa.Some(3),
+			MaxBufferSize:      dsa.Some(5),
 		})
 		args, err := handler.Next()
 		if err != nil {
@@ -210,9 +211,9 @@ func TestClientHandlerLimits(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("foo\r\n"))
 		defer handler.Close()
 		handler.SetOptions(RespReadWriterOpts{
-			MaxMultiBulkLength: utils.Pointer(1),
-			MaxBulkLength:      utils.Pointer(3),
-			MaxBufferSize:      utils.Pointer(5),
+			MaxMultiBulkLength: dsa.Some(1),
+			MaxBulkLength:      dsa.Some(3),
+			MaxBufferSize:      dsa.Some(5),
 		})
 		args, err := handler.Next()
 		if err != nil {
@@ -226,7 +227,7 @@ func TestClientHandlerLimits(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("*5\r\n$0\r\n\r\n$0\r\n\r\n$0\r\n\r\n$0\r\n\r\n$0\r\n\r\n"))
 		defer handler.Close()
 		handler.SetOptions(RespReadWriterOpts{
-			MaxMultiBulkLength: utils.Pointer(4),
+			MaxMultiBulkLength: dsa.Some(4),
 		})
 		args, err := handler.Next()
 		if err == nil {
@@ -240,7 +241,7 @@ func TestClientHandlerLimits(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("*1\r\n$1025\r\n" + strings.Repeat("a", 1025) + "\r\n"))
 		defer handler.Close()
 		handler.SetOptions(RespReadWriterOpts{
-			MaxBulkLength: utils.Pointer(1024),
+			MaxBulkLength: dsa.Some(1024),
 		})
 		args, err := handler.Next()
 		if err == nil {
@@ -254,7 +255,7 @@ func TestClientHandlerLimits(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("*1\r\n$3\r\nfoo\r\n"))
 		defer handler.Close()
 		handler.SetOptions(RespReadWriterOpts{
-			MaxBufferSize: utils.Pointer(4),
+			MaxBufferSize: dsa.Some(4),
 		})
 		args, err := handler.Next()
 		if err == nil {
@@ -268,7 +269,7 @@ func TestClientHandlerLimits(t *testing.T) {
 		handler := GetTestingClientConnParser([]byte("foo\r\n"))
 		defer handler.Close()
 		handler.SetOptions(RespReadWriterOpts{
-			MaxBufferSize: utils.Pointer(2),
+			MaxBufferSize: dsa.Some(2),
 		})
 		args, err := handler.Next()
 		if err == nil {

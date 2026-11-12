@@ -5,9 +5,9 @@ import (
 	"net"
 
 	"aymenhta.com/dice/cmd/server/commands"
+	"aymenhta.com/dice/internal/dsa"
 	"aymenhta.com/dice/internal/resp"
 	"aymenhta.com/dice/internal/store"
-	"aymenhta.com/dice/internal/utils"
 )
 
 func main() {
@@ -39,9 +39,10 @@ func handleClient(conn net.Conn, store *store.Store) {
 	log.Printf("new client has arrived %+v\n", conn.RemoteAddr())
 
 	if err := manager.SetOptions(resp.RespReadWriterOpts{
-		MaxMultiBulkLength: utils.Pointer(512 * 1024 * 1024),
-		MaxBulkLength:      utils.Pointer(65 * 1024 * 1024),
-		MaxBufferSize:      utils.Pointer(4096),
+		MaxMultiBulkLength: dsa.Some(512 * 1024 * 1024),
+		MaxBulkLength:      dsa.Some(65 * 1024 * 1024),
+		MaxBufferSize:      dsa.Some(4096),
+		RESP2Compat:        dsa.Some(true),
 	}); err != nil {
 		manager.CloseWithError(err)
 	}

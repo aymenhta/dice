@@ -66,7 +66,7 @@ func (cm *RespCommandManager) cmdExpire(db *store.Database, args [][]byte) error
 	}
 
 	key := utils.BStr(args[0])
-	secs, err := utils.ParseUInt64(args[1])
+	secs, err := utils.ParseInt64(args[1])
 	if err != nil {
 		return cm.WriteError(err)
 	}
@@ -132,15 +132,18 @@ func (cm *RespCommandManager) cmdType(db *store.Database, args [][]byte) error {
 	return cm.WriteSimpleString(entry.Value.TypeName())
 }
 
+// FIXME: it counts expired keys as well
 func (cm *RespCommandManager) cmdDbSize(db *store.Database) error {
 	return cm.WriteInt(db.Size())
 }
 
+// TODO: add support for optional argumant ASYNC | SYNC
 func (cm *RespCommandManager) cmdFlushDb(db *store.Database) error {
 	db.Clear()
 	return cm.WriteSimpleString("OK")
 }
 
+// TODO: add support for optional argumant ASYNC | SYNC
 func (cm *RespCommandManager) cmdFlushAll(st *store.Store) error {
 	for _, db := range st.DB {
 		db.Clear()

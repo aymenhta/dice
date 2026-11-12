@@ -359,11 +359,9 @@ func (db *Database) LSet(key string, index int, elem []byte) error {
 		index = le.Value.Len() + index
 	}
 
-	fmt.Println("I am here")
 	if ok := le.Value.SetAt(index, elem); !ok {
 		return utils.ErrIndexOutOfRange
 	}
-	fmt.Println("I am here 2")
 	return nil
 }
 
