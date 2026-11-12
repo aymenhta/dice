@@ -588,6 +588,15 @@ func (x *RespReadWriter) WriteBytes(v []byte) error {
 	return x.writeWithType(types.RespBulkStr, strconv.AppendInt(x.appendIntBuf[:0], int64(len(v)), 10), v)
 }
 
+// if `v` is nil, WriteBytes2 writes a `Null` for RESP3 connections or a `Null Bulk string` for RESP2 connections.
+// otherwise it is written as a bulk string
+func (x *RespReadWriter) WriteBytes2(v []byte) error {
+	if v == nil {
+		return x.WriteNullString()
+	}
+	return x.writeWithType(types.RespBulkStr, strconv.AppendInt(x.appendIntBuf[:0], int64(len(v)), 10), v)
+}
+
 // WriteString writes a [Bulk string](https://redis.io/docs/latest/develop/reference/protocol-spec/#bulk-string-reply).
 func (x *RespReadWriter) WriteString(v string) error {
 	return x.WriteBytes(utils.StrB(v))
