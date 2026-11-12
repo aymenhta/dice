@@ -187,8 +187,6 @@ func (mc *RespCommandManager) cmdLRange(db *store.Database, args [][]byte) error
 		return mc.WriteEmptyArray()
 	}
 
-	// fmt.Printf("getting bytes(start: %v, end: %v): %+v\n", s, e, le.Value.Slice(s, e))
-
 	return mc.WriteArrayBytes(le.Value.Slice(int(s), int(e+1)))
 }
 
