@@ -40,7 +40,6 @@ func (cm *RespCommandManager) cmdExists(db *store.Database, args [][]byte) error
 			count += 1
 		}
 	}
-
 	return cm.WriteInt64(count)
 }
 

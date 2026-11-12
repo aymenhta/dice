@@ -365,6 +365,64 @@ func (db *Database) LSet(key string, index int, elem []byte) error {
 	return nil
 }
 
+func (db *Database) LMove(sk, dk, from, to string) ([]byte, error) {
+	now := time.Now()
+	db.Lock()
+	defer db.Unlock()
+
+	sourceEntry, ok := db.getOrExpire(sk, now)
+	if !ok {
+		return nil, utils.ErrNoSuchKey
+	}
+
+	sList, ok := sourceEntry.AsList()
+	if !ok {
+		return nil, utils.ErrWrongTypeErr
+	}
+
+	if sList.Value.IsEmpty() {
+		return nil, utils.ErrNoSuchKey
+	}
+
+	destEntry, ok := db.getOrExpire(dk, now)
+	if !ok {
+		destEntry = NewListEntry(dsa.NewDeque[[]byte](), dsa.None[time.Time]())
+		db.Body[dk] = destEntry
+	}
+
+	dList, ok := destEntry.AsList()
+	if !ok {
+		return nil, utils.ErrWrongTypeErr
+	}
+
+	var sv []byte
+	switch from {
+	case "right":
+		x, _ := sList.Value.PopBack()
+		sv = utils.CopyBytes(x)
+	case "left":
+		x, _ := sList.Value.PopFront()
+		sv = utils.CopyBytes(x)
+	default:
+		return nil, utils.ErrSyntaxError
+	}
+
+	switch to {
+	case "right":
+		dList.Value.PushBack(sv)
+	case "left":
+		dList.Value.PushFront(sv)
+	default:
+		return nil, utils.ErrSyntaxError
+	}
+
+	if sList.Value.IsEmpty() {
+		delete(db.Body, sk)
+	}
+
+	return sv, nil
+}
+
 func (db *Database) debugMap() {
 	println("====================================================")
 	fmt.Println("key -> value")

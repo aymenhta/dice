@@ -282,3 +282,45 @@ func (mc *RespCommandManager) cmdLSet(db *store.Database, args [][]byte) error {
 
 	return mc.WriteOK()
 }
+
+type ListMoveKind uint8
+
+const (
+	MOVE_TO_LEFT ListMoveKind = iota
+	MOVE_TO_RIGHT
+)
+
+func moveKindFromBytes(b []byte) (string, error) {
+	s := utils.BStr(utils.BytesToLower(b))
+	if s != "right" && s != "left" {
+		return "", utils.ErrSyntaxError
+	}
+	return s, nil
+}
+
+func (mc *RespCommandManager) cmdLMove(db *store.Database, args [][]byte) error {
+	skey := utils.BStr(args[0])
+	dkey := utils.BStr(utils.CopyBytes(args[1]))
+	whereFrom, err := moveKindFromBytes(args[2])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+	whereTo, err := moveKindFromBytes(args[3])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+
+	b, err := db.LMove(skey, dkey, whereFrom, whereTo)
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrWrongTypeErr):
+			return mc.WriteWrongTypeError()
+		case errors.Is(err, utils.ErrNoSuchKey):
+			return mc.WriteNullString()
+		default:
+			return mc.WriteError(err)
+		}
+	}
+
+	return mc.WriteBytes(b)
+}
