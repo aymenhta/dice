@@ -575,6 +575,14 @@ func (x *RespReadWriter) WriteWrongTypeError() error {
 	)
 }
 
+func (x *RespReadWriter) WriteNoProtoError() error {
+	return x.writeWithPrefix(
+		static.RespPrefixedNoPrototErrBytes,
+		utils.StrB(utils.ErrNoProtoErr.Error()),
+		nil,
+	)
+}
+
 // WriteOK is a convenience method for calling WriteStatusBytes with "OK".
 func (x *RespReadWriter) WriteOK() error {
 	return x.writeWithPrefix(static.RespPrefixedOKBytes, nil, nil)

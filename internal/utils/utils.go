@@ -28,6 +28,11 @@ func BStr(bs []byte) string {
 	return unsafe.String(p, len(bs))
 }
 
+func BStrLowered(bs []byte) string {
+	p := unsafe.SliceData(BytesToLower(bs))
+	return unsafe.String(p, len(bs))
+}
+
 // StrB converts a string to a byte slice without copying.
 func StrB(s string) []byte {
 	if s == "" {

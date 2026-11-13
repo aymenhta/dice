@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"sync/atomic"
 
 	"aymenhta.com/dice/cmd/server/commands"
 	"aymenhta.com/dice/internal/dsa"
@@ -21,19 +22,21 @@ func main() {
 
 	store := store.NewStore()
 
+	var cID atomic.Uint64
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			log.Fatal(err)
 		}
-		go handleClient(conn, store)
+		go handleClient(conn, store, cID.Add(1))
 	}
 }
 
-func handleClient(conn net.Conn, store *store.Store) {
+func handleClient(conn net.Conn, store *store.Store, clientID uint64) {
 	defer conn.Close()
 
-	manager := commands.NewManager(conn)
+	manager := commands.NewManager(conn, clientID)
 	defer manager.Close()
 
 	log.Printf("new client has arrived %+v\n", conn.RemoteAddr())

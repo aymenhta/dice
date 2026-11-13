@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"aymenhta.com/dice/internal/dsa"
 	"aymenhta.com/dice/internal/resp"
 	"aymenhta.com/dice/internal/store"
 	"aymenhta.com/dice/internal/utils"
@@ -11,13 +12,17 @@ import (
 
 type RespCommandManager struct {
 	resp.RespReadWriter
-	currentDB int
+	currentDB  int
+	clientName dsa.Option[string]
+	clientID   uint64
 }
 
-func NewManager(rw io.ReadWriter) *RespCommandManager {
+func NewManager(rw io.ReadWriter, clientID uint64) *RespCommandManager {
 	return &RespCommandManager{
 		RespReadWriter: *resp.NewRespReadWriter(rw),
 		currentDB:      0,
+		clientName:     dsa.None[string](),
+		clientID:       clientID,
 	}
 }
 
@@ -193,6 +198,8 @@ func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 		return cm.cmdPing(args)
 	case "echo":
 		return cm.cmdEcho(args)
+	case "hello":
+		return cm.cmdHello(args)
 	case "exists":
 		return cm.cmdExists(db, args)
 	case "ttl":

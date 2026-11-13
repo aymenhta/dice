@@ -7,6 +7,7 @@ var (
 
 	RespPrefixedErrorBytes        = []byte("-ERR ")
 	RespPrefixedWrongTypeErrBytes = []byte("-WRONGTYPE ")
+	RespPrefixedNoPrototErrBytes  = []byte("-NOPROTO")
 	RespPrefixedOKBytes           = []byte("+OK")
 	RespPrefixedNullStringBytes   = []byte("$-1")
 	RespPrefixedNullArrayBytes    = []byte("*-1")

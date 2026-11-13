@@ -335,3 +335,10 @@ func (o Option[T]) hasLeftValue() bool {
 func empty[T any]() (t T) {
 	return
 }
+
+func (o *Option[T]) String() string {
+	if o.isPresent {
+		return fmt.Sprintf("Some(%+v)", o.value)
+	}
+	return "None"
+}
