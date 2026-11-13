@@ -88,6 +88,15 @@ func parseHelloCmdArgs(args [][]byte) (*HelloCmdArgs, error) {
 	return x, nil
 }
 
+// returns the following list:
+// - server: The server software name, usually redis.
+// - version: The server’s version.
+// - proto: The RESP protocol version used by this connection—2 or 3.
+// - id: The unique ID of this client connection on the server.
+// - mode: The server’s operating mode, such as standalone, sentinel, or cluster.
+// - role: The server’s replication role, typically master or replica.
+// - modules: Modules loaded on the server, if any; otherwise an empty list.
+//
 // TODO; support user auth
 func (mc *RespCommandManager) cmdHello(args [][]byte) error {
 	x, err := parseHelloCmdArgs(args)
@@ -123,9 +132,9 @@ func (mc *RespCommandManager) cmdHello(args [][]byte) error {
 		mc.WriteMapHeader(7)
 	}
 	mc.WriteString("server")
-	mc.WriteString("redis")
+	mc.WriteString("dice")
 	mc.WriteString("version")
-	mc.WriteString("8.10.3")
+	mc.WriteString("0.0.1")
 	mc.WriteString("proto")
 	mc.WriteInt64(2)
 	mc.WriteString("id")
