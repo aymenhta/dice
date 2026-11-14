@@ -14,6 +14,7 @@ import (
 	"aymenhta.com/dice/internal/dsa"
 	"aymenhta.com/dice/internal/resp"
 	"aymenhta.com/dice/internal/store"
+	"golang.org/x/sys/unix"
 )
 
 type DiceServer struct {
@@ -49,7 +50,26 @@ func (srv *DiceServer) ListenAndServe() error {
 	}
 }
 
-func (srv *DiceServer) ListenAndServeFromWorker(lc net.ListenConfig, workerPID int) error {
+func (srv *DiceServer) ListenAndServeFromWorker(workerPID int) error {
+	lc := net.ListenConfig{
+		Control: func(network string, address string, c syscall.RawConn) error {
+			var innerErr error
+			err := c.Control(func(fd uintptr) {
+				// Enable SO_REUSEADDR
+				innerErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+				if innerErr != nil {
+					return
+				}
+				// Enable SO_REUSEPORT so multiple workers can bind the same port
+				innerErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+			})
+			if err != nil {
+				return err
+			}
+
+			return innerErr
+		},
+	}
 	l, err := lc.Listen(context.Background(), "tcp", srv.address)
 	if err != nil {
 		return fmt.Errorf("Worker [PID %d] failed to listen: %v", workerPID, err)

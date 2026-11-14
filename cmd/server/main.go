@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -12,17 +11,23 @@ import (
 	"syscall"
 
 	"aymenhta.com/dice/internal/utils"
-	"golang.org/x/sys/unix"
 )
 
-var workerFlag = flag.Bool("worker", false, "run as a worker process")
+type Config struct {
+	isWorker bool
+	addr     string
+	nworkers int
+}
 
 func main() {
+	var cfg Config
+	flag.BoolVar(&cfg.isWorker, "worker", false, "run as a worker process")
+	flag.StringVar(&cfg.addr, "addr", "0.0.0.0:8888", "listen addres")
+	flag.IntVar(&cfg.nworkers, "nw", runtime.NumCPU()-1, "number of workers")
 	flag.Parse()
-	addr := "0.0.0.0:8888"
-	nWorkers := utils.MaxInt(runtime.NumCPU()-1, 1)
+	nWorkers := utils.MaxInt(cfg.nworkers, 1)
 
-	if !*workerFlag {
+	if !cfg.isWorker {
 		// ==================================
 		// LEADER PROCESS
 		// ==================================
@@ -66,29 +71,8 @@ func main() {
 		// WORKER PROCESS
 		// ===================================
 		workerPID := os.Getpid()
-
-		lc := net.ListenConfig{
-			Control: func(network string, address string, c syscall.RawConn) error {
-				var innerErr error
-				err := c.Control(func(fd uintptr) {
-					// Enable SO_REUSEADDR
-					innerErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
-					if innerErr != nil {
-						return
-					}
-					// Enable SO_REUSEPORT so multiple workers can bind the same port
-					innerErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, unix.SO_REUSEPORT, 1)
-				})
-				if err != nil {
-					return err
-				}
-
-				return innerErr
-			},
-		}
-
-		srv := newDiceServer(addr, nWorkers)
-		if err := srv.ListenAndServeFromWorker(lc, workerPID); err != nil {
+		srv := newDiceServer(cfg.addr, nWorkers)
+		if err := srv.ListenAndServeFromWorker(workerPID); err != nil {
 			log.Fatal(err)
 		}
 	}
