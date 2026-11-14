@@ -1,67 +1,96 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"log"
 	"net"
-	"sync/atomic"
+	"os"
+	"os/exec"
+	"os/signal"
+	"runtime"
+	"syscall"
 
-	"aymenhta.com/dice/cmd/server/commands"
-	"aymenhta.com/dice/internal/dsa"
-	"aymenhta.com/dice/internal/resp"
-	"aymenhta.com/dice/internal/store"
+	"aymenhta.com/dice/internal/utils"
+	"golang.org/x/sys/unix"
 )
 
+var workerFlag = flag.Bool("worker", false, "run as a worker process")
+
 func main() {
-	l, err := net.Listen("tcp", ":8888")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer l.Close()
+	flag.Parse()
+	addr := "0.0.0.0:8888"
+	nWorkers := utils.MaxInt(runtime.NumCPU()-1, 1)
 
-	log.Println("Server started listening on port 8888")
+	if !*workerFlag {
+		// ==================================
+		// LEADER PROCESS
+		// ==================================
+		leaderPID := os.Getpid()
+		fmt.Printf("Leader Process [PID %d] starting...\n", leaderPID)
+		fmt.Printf("Spawning %d worker processes...\n", nWorkers)
 
-	store := store.NewStore()
+		workers := make([]*exec.Cmd, nWorkers)
+		for i := range nWorkers {
+			// Re-execute the current binary with the --worker flag
+			cmd := exec.Command(os.Args[0], "--worker")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.Stdin = os.Stdin
 
-	var cID atomic.Uint64
+			if err := cmd.Start(); err != nil {
+				log.Fatalf("failed to start worker %d: %v", i, err)
+			}
+			workers[i] = cmd
+		}
 
-	for {
-		conn, err := l.Accept()
-		if err != nil {
+		// Trap Signals for graceful shutdown of the entire pool
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		<-sigChan
+
+		fmt.Println("Leader shutting down, signaling workers...")
+		for _, w := range workers {
+			if w.Process != nil {
+				_ = w.Process.Signal(syscall.SIGTERM)
+			}
+		}
+
+		// wait for all workers to exit
+		for _, w := range workers {
+			_ = w.Wait()
+		}
+		fmt.Println("Leader exited cleanly.")
+	} else {
+		// ===================================
+		// WORKER PROCESS
+		// ===================================
+		workerPID := os.Getpid()
+
+		lc := net.ListenConfig{
+			Control: func(network string, address string, c syscall.RawConn) error {
+				var innerErr error
+				err := c.Control(func(fd uintptr) {
+					// Enable SO_REUSEADDR
+					innerErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+					if innerErr != nil {
+						return
+					}
+					// Enable SO_REUSEPORT so multiple workers can bind the same port
+					innerErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+				})
+				if err != nil {
+					return err
+				}
+
+				return innerErr
+			},
+		}
+
+		srv := newDiceServer(addr, nWorkers)
+		if err := srv.ListenAndServeFromWorker(lc, workerPID); err != nil {
 			log.Fatal(err)
 		}
-		go handleClient(conn, store, cID.Add(1))
-	}
-}
-
-func handleClient(conn net.Conn, store *store.Store, clientID uint64) {
-	defer conn.Close()
-
-	manager := commands.NewManager(conn, clientID)
-	defer manager.Close()
-
-	log.Printf("new client has arrived %+v\n", conn.RemoteAddr())
-
-	if err := manager.SetOptions(resp.RespReadWriterOpts{
-		MaxMultiBulkLength: dsa.Some(512 * 1024 * 1024),
-		MaxBulkLength:      dsa.Some(65 * 1024 * 1024),
-		MaxBufferSize:      dsa.Some(4096),
-		RESP2Compat:        dsa.Some(true),
-	}); err != nil {
-		manager.CloseWithError(err)
 	}
 
-	for {
-		args, err := manager.Next()
-		if err != nil {
-			manager.CloseWithError(err)
-			log.Printf("closed connection from %s, during read: %v\n", conn.RemoteAddr(), err)
-			return
-		}
-
-		if err := manager.Dispatch(store, args); err != nil {
-			manager.CloseWithError(err)
-			log.Printf("closed connection from %s during write: %v\n", conn.RemoteAddr(), err)
-			return
-		}
-	}
 }

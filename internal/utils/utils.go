@@ -292,3 +292,10 @@ func BytesToXXH3hex(b []byte) string {
 	hashBytes := xxh3.Hash(b)
 	return fmt.Sprintf("%016x", hashBytes)
 }
+
+func MaxInt(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
+}
