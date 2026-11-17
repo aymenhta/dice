@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"syscall"
 
-	"aymenhta.com/dice/internal/utils"
+	"github.com/aymenhta/dice/internal/utils"
 )
 
 func main() {

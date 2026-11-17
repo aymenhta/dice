@@ -7,7 +7,7 @@ import (
 	"time"
 	"unsafe"
 
-	"aymenhta.com/dice/internal/resp/static"
+	"github.com/aymenhta/dice/internal/resp/static"
 	"github.com/zeebo/xxh3"
 )
 

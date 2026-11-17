@@ -8,11 +8,11 @@ import (
 	"math/big"
 	"strconv"
 
-	"aymenhta.com/dice/internal/dsa"
-	"aymenhta.com/dice/internal/resp/doublebuffer"
-	"aymenhta.com/dice/internal/resp/static"
-	"aymenhta.com/dice/internal/resp/types"
-	"aymenhta.com/dice/internal/utils"
+	"github.com/aymenhta/dice/internal/dsa"
+	"github.com/aymenhta/dice/internal/resp/doublebuffer"
+	"github.com/aymenhta/dice/internal/resp/static"
+	"github.com/aymenhta/dice/internal/resp/types"
+	"github.com/aymenhta/dice/internal/utils"
 )
 
 const ReaderBufferSize = 65536

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"io"
 
-	"aymenhta.com/dice/internal/dsa"
-	"aymenhta.com/dice/internal/resp"
-	"aymenhta.com/dice/internal/store"
-	"aymenhta.com/dice/internal/utils"
+	"github.com/aymenhta/dice/internal/dsa"
+	"github.com/aymenhta/dice/internal/resp"
+	"github.com/aymenhta/dice/internal/store"
+	"github.com/aymenhta/dice/internal/utils"
 )
 
 type RespCommandManager struct {

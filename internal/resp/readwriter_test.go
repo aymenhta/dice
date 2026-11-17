@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"aymenhta.com/dice/internal/dsa"
-	"aymenhta.com/dice/internal/utils"
+	"github.com/aymenhta/dice/internal/dsa"
+	"github.com/aymenhta/dice/internal/utils"
 )
 
 func randomString(l int) string {

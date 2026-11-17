@@ -3,7 +3,7 @@ package store
 import (
 	"time"
 
-	"aymenhta.com/dice/internal/dsa"
+	"github.com/aymenhta/dice/internal/dsa"
 )
 
 type EntryKind uint8

@@ -3,9 +3,9 @@ package commands
 import (
 	"time"
 
-	"aymenhta.com/dice/internal/dsa"
-	"aymenhta.com/dice/internal/store"
-	"aymenhta.com/dice/internal/utils"
+	"github.com/aymenhta/dice/internal/dsa"
+	"github.com/aymenhta/dice/internal/store"
+	"github.com/aymenhta/dice/internal/utils"
 )
 
 func lives(db *store.Database, key string) (*store.Entry, bool) {

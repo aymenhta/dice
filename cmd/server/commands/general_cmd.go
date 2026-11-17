@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"aymenhta.com/dice/internal/dsa"
-	"aymenhta.com/dice/internal/store"
-	"aymenhta.com/dice/internal/utils"
+	"github.com/aymenhta/dice/internal/dsa"
+	"github.com/aymenhta/dice/internal/store"
+	"github.com/aymenhta/dice/internal/utils"
 )
 
 func (cm *RespCommandManager) cmdPing(args [][]byte) error {

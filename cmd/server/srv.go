@@ -10,10 +10,10 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	"aymenhta.com/dice/cmd/server/commands"
-	"aymenhta.com/dice/internal/dsa"
-	"aymenhta.com/dice/internal/resp"
-	"aymenhta.com/dice/internal/store"
+	"github.com/aymenhta/dice/cmd/server/commands"
+	"github.com/aymenhta/dice/internal/dsa"
+	"github.com/aymenhta/dice/internal/resp"
+	"github.com/aymenhta/dice/internal/store"
 	"golang.org/x/sys/unix"
 )
 
