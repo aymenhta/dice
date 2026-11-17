@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -13,20 +12,26 @@ import (
 	"aymenhta.com/dice/internal/utils"
 )
 
-type Config struct {
-	isWorker bool
-	addr     string
-	nworkers int
+func main() {
+	opts := parseRunOptions()
+
+	switch runtime.GOOS {
+	case "linux":
+		nWorkers := utils.MaxInt(opts.nworkers, 1)
+		runWithWorkers(opts, nWorkers)
+	default:
+		run(opts.addr)
+	}
 }
 
-func main() {
-	var cfg Config
-	flag.BoolVar(&cfg.isWorker, "worker", false, "run as a worker process")
-	flag.StringVar(&cfg.addr, "addr", "0.0.0.0:8888", "listen addres")
-	flag.IntVar(&cfg.nworkers, "nw", runtime.NumCPU()-1, "number of workers")
-	flag.Parse()
-	nWorkers := utils.MaxInt(cfg.nworkers, 1)
+func run(addr string) {
+	srv := newDiceServer(addr)
+	if err := srv.ListenAndServe(); err != nil {
+		log.Fatal(err)
+	}
+}
 
+func runWithWorkers(cfg RunOptions, nWorkers int) {
 	if !cfg.isWorker {
 		// ==================================
 		// LEADER PROCESS
@@ -71,10 +76,9 @@ func main() {
 		// WORKER PROCESS
 		// ===================================
 		workerPID := os.Getpid()
-		srv := newDiceServer(cfg.addr, nWorkers)
+		srv := newDiceServerForWorker(cfg.addr, nWorkers)
 		if err := srv.ListenAndServeFromWorker(workerPID); err != nil {
 			log.Fatal(err)
 		}
 	}
-
 }

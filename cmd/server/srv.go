@@ -24,11 +24,18 @@ type DiceServer struct {
 	store    *store.Store
 }
 
-func newDiceServer(address string, nworker int) *DiceServer {
+func newDiceServerForWorker(address string, nworker int) *DiceServer {
 	return &DiceServer{
 		address: address,
 		store:   store.NewStore(),
 		nWorker: nworker,
+	}
+}
+
+func newDiceServer(address string) *DiceServer {
+	return &DiceServer{
+		address: address,
+		store:   store.NewStore(),
 	}
 }
 
@@ -112,9 +119,9 @@ func (srv *DiceServer) handleClient(conn net.Conn, workerPID int) {
 	defer manager.Close()
 
 	if workerPID != -1 {
-		fmt.Printf("🔌 [Worker PID %d] Handled connection from %s\n", workerPID, conn.RemoteAddr().String())
+		fmt.Printf("[Worker PID %d] Handled connection from %s\n", workerPID, conn.RemoteAddr().String())
 	} else {
-		log.Printf("new client has arrived %+v\n", conn.RemoteAddr())
+		log.Printf("new client has arrived %+v\n", conn.RemoteAddr().String())
 	}
 
 	if err := manager.SetOptions(resp.RespReadWriterOpts{
