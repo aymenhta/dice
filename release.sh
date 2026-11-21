@@ -7,9 +7,9 @@ set -Eeuo pipefail
 # Configuration
 # -----------------------------------------
 
-APP_NAME="${APP_NAME:-nexuskv}"
+APP_NAME="${APP_NAME:-dice}"
 MAIN_PACKAGE="${MAIN_PACKAGE:-./cmd/server}"
-VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}"
+VERSION="${VERSION:-$(git describe --tags --always 2>/dev/null || echo dev)}"
 
 BUILD_DIR="${BUILD_DIR:-build}"
 DIST_DIR="${DIST_DIR:-dist}"
