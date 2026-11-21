@@ -1,6 +1,6 @@
 module github.com/aymenhta/dice
 
-go 1.27.1
+go 1.27.4
 
 require (
 	github.com/zeebo/xxh3 v1.1.0
