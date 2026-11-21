@@ -16,7 +16,7 @@
 
 
 ```bash
-bash build.sh
+bash ./build_run.sh
 ```
 
 بعدها قم بتنفيذ الأوامر التالية:
@@ -30,6 +30,42 @@ redis-cli -p 8888 HGETALL user:1
 redis-cli -p 8888 LPUSH evens 2 4 6 8
 redis-cli -p 8888 LRANGE evens 0 -1
 ```
+
+كما يمكن استخدام أي عميل Redis متاح لأي لغة برمجة.
+
+<div dir="ltr">
+
+```python
+import redis
+
+r = redis.Redis("localhost", port=8888, db=0, decode_responses=True)
+
+# Strings
+r.set("user:100:name", "Alice", ex=3600) # expire in an hour
+print(r.get("user:100:name")) # Output alice
+
+users = {
+    "user:101:name": "Alice",
+    "user:102:name": "Bob",
+    "user:103:name": "Charlie",
+}
+r.mset(users)
+
+keys_to_fetch = ["user:101:name", "user:102:name", "user:999:name"]
+print(r.mget(keys_to_fetch)) # Output: ['Alice', 'Bob', None]  (Missing keys return None)
+
+# Hashes
+r.hset("user:100:profile", mapping={"role": "admin", "active": "true"})
+print(r.hgetall("user:100:profile"))
+
+# Lists
+r.rpush("tasks", "email", "report")
+print(r.rpop("tasks"))
+
+r.close()
+```
+
+</div>
 
 
 ## قائمة الأوامر المدعومة
