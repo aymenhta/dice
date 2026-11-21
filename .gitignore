@@ -3,3 +3,5 @@ naiveresp/
 naiveserver/
 docs/
 clients/
+dist/
+build/
