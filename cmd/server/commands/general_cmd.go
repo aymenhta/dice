@@ -136,7 +136,11 @@ func (mc *RespCommandManager) cmdHello(args [][]byte) error {
 	mc.WriteString("version")
 	mc.WriteString("0.0.1")
 	mc.WriteString("proto")
-	mc.WriteInt64(2)
+	if mc.RESP2Compat() {
+		mc.WriteInt64(2)
+	} else {
+		mc.WriteInt64(3)
+	}
 	mc.WriteString("id")
 	mc.WriteInt64(int64(mc.clientID))
 	mc.WriteString("mode")
