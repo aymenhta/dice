@@ -24,8 +24,8 @@ func NewDB[V any]() *Database {
 
 func (db *Database) Set(key string, value *Entry) {
 	db.Lock()
+	defer db.Unlock()
 	db.Body[key] = value
-	db.Unlock()
 }
 
 func (db *Database) Get(key string) (*Entry, bool) {

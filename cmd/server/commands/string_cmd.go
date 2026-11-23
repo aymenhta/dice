@@ -979,3 +979,14 @@ func (mc *RespCommandManager) cmdMSetNx(db *store.Database, args [][]byte) error
 	db.MSet(pairs)
 	return mc.WriteInt64(1)
 }
+
+func (mc *RespCommandManager) cmdSetNx(db *store.Database, args [][]byte) error {
+	k := utils.BStr(utils.CopyBytes(args[0]))
+	if _, ok := lives(db, k); ok {
+		return mc.WriteInt64(0)
+	}
+
+	v := store.NewStringEntry(utils.CopyBytes(args[1]), dsa.None[time.Time]())
+	db.Set(k, v)
+	return mc.WriteInt64(1)
+}
