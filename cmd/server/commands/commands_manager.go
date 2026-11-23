@@ -79,6 +79,11 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return mc.cmdMSetEx(db, args)
+	case "msetnx":
+		if len(args)%2 != 0 {
+			return mc.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return mc.cmdMSetNx(db, args)
 
 	// hash commands
 	case "hset":

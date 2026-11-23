@@ -3,6 +3,7 @@ package store
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -146,10 +147,8 @@ func (db *Database) BatchRemove(keys []string) int64 {
 
 func (db *Database) MSet(pairs map[string]*Entry) {
 	db.Lock()
-	for k, v := range pairs {
-		db.Body[k] = v
-	}
-	db.Unlock()
+	defer db.Unlock()
+	maps.Copy(db.Body, pairs)
 }
 
 func (db *Database) GetAndRemove(key string) ([]byte, bool, bool) {

@@ -960,3 +960,22 @@ func (mc *RespCommandManager) cmdMSetEx(db *store.Database, args [][]byte) error
 
 	return mc.WriteInt64(n)
 }
+
+func (mc *RespCommandManager) cmdMSetNx(db *store.Database, args [][]byte) error {
+	pairs := make(map[string]*store.Entry)
+	for a := range slices.Chunk(args, 2) {
+		k := utils.BStr(utils.CopyBytes(a[0]))
+		v := utils.CopyBytes(a[1])
+		pairs[k] = store.NewStringEntry(v, dsa.None[time.Time]())
+	}
+
+	// all keys must not exist
+	for k := range pairs {
+		if _, ok := lives(db, k); ok {
+			return mc.WriteInt64(0)
+		}
+	}
+
+	db.MSet(pairs)
+	return mc.WriteInt64(1)
+}
