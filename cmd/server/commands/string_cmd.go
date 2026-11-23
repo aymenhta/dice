@@ -113,7 +113,7 @@ type SetTTL struct {
 	action  SetTtlAction
 }
 
-func convertSecsToMillis(kind SetTtlKind, n int64, cmd string) (int64, error) {
+func (kind SetTtlKind) convertSecsToMillis(n int64, cmd string) (int64, error) {
 	if kind == SET_TTL_EX || kind == SET_TTL_EXAT {
 		n = n * 1000
 		return n, nil // TODO: check for integer overflow
@@ -125,7 +125,7 @@ func convertSecsToMillis(kind SetTtlKind, n int64, cmd string) (int64, error) {
 	return -1, utils.InvalidExpire(cmd)
 }
 
-func calculateDeadline(kind SetTtlKind, ms int64, cmd string) (dsa.Option[time.Time], error) {
+func (kind SetTtlKind) calculateDeadline(ms int64, cmd string) (dsa.Option[time.Time], error) {
 	switch kind {
 	case SET_TTL_EX, SET_TTL_PX:
 		return dsa.Some(time.Now().Add(time.Duration(ms) * time.Millisecond)), nil
@@ -136,19 +136,19 @@ func calculateDeadline(kind SetTtlKind, ms int64, cmd string) (dsa.Option[time.T
 	}
 }
 
-func expiryToTime(kind SetTtlKind, n int64, cmd string) (dsa.Option[time.Time], error) {
+func (kind SetTtlKind) expiryToTime(n int64, cmd string) (dsa.Option[time.Time], error) {
 	if n <= 0 {
 		return dsa.None[time.Time](), utils.InvalidExpire(cmd)
 	}
 
 	// convert to ms
-	millis, err := convertSecsToMillis(kind, n, cmd)
+	millis, err := kind.convertSecsToMillis(n, cmd)
 	if err != nil {
 		return dsa.None[time.Time](), err
 	}
 
 	// calculate deadline
-	return calculateDeadline(kind, millis, cmd)
+	return kind.calculateDeadline(millis, cmd)
 }
 
 func (x *SetTTL) expires_at() dsa.Option[time.Time] {
@@ -264,7 +264,7 @@ func (cm *RespCommandManager) cmdSet(db *store.Database, args [][]byte) error {
 				if err != nil {
 					return cm.WriteError(err)
 				}
-				new_ttl, err := expiryToTime(kindVal, n, "set")
+				new_ttl, err := kindVal.expiryToTime( /*kindVal,*/ n, "set")
 				if err != nil {
 					return cm.WriteError(err)
 				}
@@ -597,7 +597,7 @@ func (cm *RespCommandManager) cmdGetEx(db *store.Database, args [][]byte) error 
 					return cm.WriteError(err)
 				}
 
-				t, err := expiryToTime(kVal, n, "getex")
+				t, err := kVal.expiryToTime( /*kVal,*/ n, "getex")
 				if err != nil {
 					return cm.WriteError(err)
 				}
@@ -809,4 +809,154 @@ func (cm *RespCommandManager) cmdSetRange(db *store.Database, args [][]byte) err
 	l := len(v)
 	strE.Value = v
 	return cm.WriteInt(l)
+}
+
+type MSetExArgs struct {
+	nKeys          int64
+	fields         []dsa.Tuple[string, []byte]
+	cond           dsa.Option[string]
+	expirationKind dsa.Option[string]
+	expiration     dsa.Option[time.Time]
+}
+
+func mSetExConvertSecsToMillis(kind string, n int64) (int64, error) {
+	if kind == "ex" || kind == "exat" {
+		n = n * 1000
+		return n, nil // TODO: check for integer overflow
+	}
+	if kind == "px" || kind == "pxat" {
+		return n, nil
+	}
+
+	return -1, utils.InvalidExpire("msetex")
+}
+
+func mSetExCalculateDeadline(kind string, ms int64) (dsa.Option[time.Time], error) {
+	switch kind {
+	case "ex", "px":
+		return dsa.Some(time.Now().Add(time.Duration(ms) * time.Millisecond)), nil
+	case "exat", "pxat":
+		return dsa.Some(utils.UnixMsToInstant(ms)), nil
+	default:
+		return dsa.None[time.Time](), utils.InvalidExpire("msetex")
+	}
+}
+
+func mSetExExpiryToTime(kind string, n int64) (dsa.Option[time.Time], error) {
+	if n <= 0 {
+		return dsa.None[time.Time](), utils.InvalidExpire("msetex")
+	}
+
+	// convert to ms
+	millis, err := mSetExConvertSecsToMillis(kind, n)
+	if err != nil {
+		return dsa.None[time.Time](), err
+	}
+
+	// calculate deadline
+	return mSetExCalculateDeadline(kind, millis)
+}
+
+func parseMSetExArgs(args [][]byte) (*MSetExArgs, error) {
+	nkeys, err := utils.ParseInt64(args[0])
+	if err != nil {
+		return nil, err
+	}
+	if nkeys < 1 {
+		return nil, utils.ErrSyntaxError
+	}
+
+	offset := nkeys*2 + 1
+	rawFields := args[1:offset]
+	if len(rawFields)%2 != 0 {
+		return nil, utils.ErrSyntaxError
+	}
+
+	fields := make([]dsa.Tuple[string, []byte], 0, nkeys)
+	for pair := range slices.Chunk(rawFields, 2) {
+		fields = append(fields, dsa.NewTuple(
+			utils.BStr(utils.CopyBytes(pair[0])),
+			utils.CopyBytes(pair[1]),
+		))
+	}
+
+	cond := dsa.None[string]()
+	expKind := dsa.None[string]()
+	exp := dsa.None[time.Time]()
+
+	i := int(offset)
+	for i < len(args) {
+		option := utils.BStr(utils.BytesToLower(args[i]))
+		switch option {
+		case "nx":
+			if cond.IsSomeAnd(func(v string) bool { return v != "nx" }) {
+				return nil, utils.ErrSyntaxError
+			}
+			cond = dsa.Some("nx")
+			i += 1
+		case "xx":
+			if cond.IsSomeAnd(func(v string) bool { return v != "xx" }) {
+				return nil, utils.ErrSyntaxError
+			}
+			cond = dsa.Some("xx")
+			i += 1
+		case "keepttl":
+			if expKind.IsSomeAnd(func(v string) bool { return v != "keepttl" }) {
+				return nil, utils.ErrSyntaxError
+			}
+			expKind = dsa.Some("keepttl")
+			i = i + 1
+		default:
+			if option == "ex" || option == "px" || option == "exat" || option == "pxat" {
+				if i+1 >= len(args) {
+					return nil, utils.ErrSyntaxError
+				}
+				if expKind.IsSomeAnd(func(k string) bool { return k != option }) {
+					return nil, utils.ErrSyntaxError
+				}
+				n, err := utils.ParseInt64(args[i+1])
+				if err != nil {
+					return nil, err
+				}
+				new_ttl, err := mSetExExpiryToTime(option, n)
+				if err != nil {
+					return nil, err
+				}
+
+				expKind = dsa.Some(option)
+				exp = new_ttl
+				i = i + 2
+			} else {
+				return nil, utils.ErrSyntaxError
+			}
+		}
+	}
+
+	return &MSetExArgs{
+		nKeys:          nkeys,
+		fields:         fields,
+		cond:           cond,
+		expirationKind: expKind,
+		expiration:     exp,
+	}, nil
+}
+
+func (mc *RespCommandManager) cmdMSetEx(db *store.Database, args [][]byte) error {
+	opts, err := parseMSetExArgs(args)
+	if err != nil {
+		return mc.WriteError(err)
+	}
+
+	n, err := db.MSetEx(
+		opts.nKeys,
+		opts.fields,
+		opts.cond,
+		opts.expirationKind,
+		opts.expiration,
+	)
+	if err != nil {
+		return mc.WriteError(err)
+	}
+
+	return mc.WriteInt64(n)
 }

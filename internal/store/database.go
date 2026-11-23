@@ -445,6 +445,63 @@ func (db *Database) LTrim(k string, start, stop int) error {
 	return nil
 }
 
+// returns 0 if none of the keys were set; 1 if all of the keys were set.
+func (db *Database) MSetEx(
+	nkeys int64,
+	fields []dsa.Tuple[string, []byte],
+	condition dsa.Option[string],
+	ttlkind dsa.Option[string],
+	ttl dsa.Option[time.Time],
+) (int64, error) {
+	now := time.Now()
+	db.Lock()
+	defer db.Unlock()
+
+	setAllowed := true
+	if condition.IsSomeAnd(func(v string) bool { return v == "nx" }) {
+		for _, f := range fields {
+			_, ok := db.getOrExpire(f.Fst, now)
+			if ok {
+				setAllowed = false
+				break
+			}
+		}
+	} else if condition.IsSomeAnd(func(v string) bool { return v == "xx" }) {
+		for _, f := range fields {
+			_, ok := db.getOrExpire(f.Fst, now)
+			if !ok {
+				setAllowed = false
+				break
+			}
+		}
+	}
+
+	if !setAllowed {
+		return 0, nil
+	}
+
+	var isSet int64
+	for _, f := range fields {
+		expiresAt := dsa.None[time.Time]()
+		if ttlkind.IsSomeAnd(func(v string) bool { return v == "ex" || v == "px" || v == "exat" || v == "pxat" }) {
+			expiresAt = ttl
+		}
+
+		old, ok := db.getOrExpire(f.Fst, now)
+		if ok && ttlkind.IsSomeAnd(func(v string) bool { return v == "keepttl" }) {
+			expiresAt = old.Ttl
+		}
+
+		db.Body[f.Fst] = NewStringEntry(f.Snd, expiresAt)
+		isSet += 1
+	}
+
+	if isSet != nkeys {
+		return 0, nil
+	}
+	return 1, nil
+}
+
 func (db *Database) debugMap() {
 	println("====================================================")
 	fmt.Println("key -> value")

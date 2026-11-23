@@ -26,201 +26,206 @@ func NewManager(rw io.ReadWriter, clientID uint64) *RespCommandManager {
 	}
 }
 
-func (cm *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error {
+func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error {
 	cmd := utils.BStr(utils.BytesToLower(args[0]))
 	args = args[1:]
 
-	db := store.DB[cm.currentDB]
+	db := store.DB[mc.currentDB]
 
 	switch cmd {
 	// string commands
 	case "set":
-		return cm.cmdSet(db, args)
+		return mc.cmdSet(db, args)
 	case "get":
-		return cm.cmdGet(db, args)
+		return mc.cmdGet(db, args)
 	case "del":
-		return cm.cmdDel(db, args)
+		return mc.cmdDel(db, args)
 	case "incr":
-		return cm.cmdIncr(db, args)
+		return mc.cmdIncr(db, args)
 	case "decr":
-		return cm.cmdDecr(db, args)
+		return mc.cmdDecr(db, args)
 	case "incrby":
-		return cm.cmdIncrBy(db, args)
+		return mc.cmdIncrBy(db, args)
 	case "decrby":
-		return cm.cmdDecrBy(db, args)
+		return mc.cmdDecrBy(db, args)
 	case "mget":
-		return cm.cmdMGet(db, args)
+		return mc.cmdMGet(db, args)
 	case "mset":
-		return cm.cmdMSet(db, args)
+		return mc.cmdMSet(db, args)
 	case "getdel":
-		return cm.cmdGetDel(db, args)
+		return mc.cmdGetDel(db, args)
 	case "delex":
-		return cm.cmdDelEx(db, args)
+		return mc.cmdDelEx(db, args)
 	case "getex":
-		return cm.cmdGetEx(db, args)
+		return mc.cmdGetEx(db, args)
 	case "strlen":
-		return cm.cmdStrLen(db, args)
+		return mc.cmdStrLen(db, args)
 	case "append":
-		return cm.cmdAppend(db, args)
+		return mc.cmdAppend(db, args)
 	case "digest":
-		return cm.cmdDigest(db, args)
+		return mc.cmdDigest(db, args)
 	case "getrange":
 		if len(args) != 3 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdGetRange(db, args)
+		return mc.cmdGetRange(db, args)
 	case "setrange":
 		if len(args) != 3 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdSetRange(db, args)
+		return mc.cmdSetRange(db, args)
+	case "msetex":
+		if len(args) < 3 {
+			return mc.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return mc.cmdMSetEx(db, args)
 
 	// hash commands
 	case "hset":
-		return cm.cmdHSet(db, args)
+		return mc.cmdHSet(db, args)
 	case "hget":
-		return cm.cmdHGet(db, args)
+		return mc.cmdHGet(db, args)
 	case "hgetall":
 		if len(args) != 1 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdHGetAll(db, args)
+		return mc.cmdHGetAll(db, args)
 	case "hdel":
 		if len(args) < 2 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdHDel(db, args)
+		return mc.cmdHDel(db, args)
 	case "hexists":
 		if len(args) != 2 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdHExists(db, args)
+		return mc.cmdHExists(db, args)
 	case "hlen":
 		if len(args) != 1 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdHLen(db, args)
+		return mc.cmdHLen(db, args)
 	case "hmget":
 		if len(args) < 2 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdHMGet(db, args)
+		return mc.cmdHMGet(db, args)
 	case "hkeys":
 		if len(args) != 1 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdHKeysOrVals(db, args, true)
+		return mc.cmdHKeysOrVals(db, args, true)
 	case "hvals":
 		if len(args) != 1 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdHKeysOrVals(db, args, false)
+		return mc.cmdHKeysOrVals(db, args, false)
 	case "hincrby":
 		if len(args) != 3 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdHIncrBy(db, args)
+		return mc.cmdHIncrBy(db, args)
 	case "hexpire":
 		if len(args) < 5 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdHExpire(db, args)
+		return mc.cmdHExpire(db, args)
 
 	// list commands
 	case "lpush":
 		if len(args) < 2 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdLPush(db, args)
+		return mc.cmdLPush(db, args)
 	case "rpush":
 		if len(args) < 2 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdRPush(db, args)
+		return mc.cmdRPush(db, args)
 	case "lpushx":
 		if len(args) < 2 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdLPushx(db, args)
+		return mc.cmdLPushx(db, args)
 	case "rpushx":
 		if len(args) < 2 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdRPushx(db, args)
+		return mc.cmdRPushx(db, args)
 	case "lpop":
 		if len(args) < 1 || len(args) > 2 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdLPop(db, args)
+		return mc.cmdLPop(db, args)
 	case "rpop":
 		if len(args) < 1 || len(args) > 2 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdRPop(db, args)
+		return mc.cmdRPop(db, args)
 	case "lrange":
 		if len(args) != 3 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdLRange(db, args)
+		return mc.cmdLRange(db, args)
 	case "llen":
 		if len(args) != 1 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdLLen(db, args)
+		return mc.cmdLLen(db, args)
 	case "lindex":
 		if len(args) != 2 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdLIndex(db, args)
+		return mc.cmdLIndex(db, args)
 	case "lrem":
 		if len(args) != 3 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdLRem(db, args)
+		return mc.cmdLRem(db, args)
 	case "lset":
 		if len(args) != 3 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdLSet(db, args)
+		return mc.cmdLSet(db, args)
 	case "lmove":
 		if len(args) != 4 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdLMove(db, args)
+		return mc.cmdLMove(db, args)
 	case "ltrim":
 		if len(args) != 3 {
-			return cm.WriteError(utils.WrongArgsNum(cmd))
+			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
-		return cm.cmdLTrim(db, args)
+		return mc.cmdLTrim(db, args)
 
 	// general commands
 	case "ping":
-		return cm.cmdPing(args)
+		return mc.cmdPing(args)
 	case "echo":
-		return cm.cmdEcho(args)
+		return mc.cmdEcho(args)
 	case "hello":
-		return cm.cmdHello(args)
+		return mc.cmdHello(args)
 	case "exists":
-		return cm.cmdExists(db, args)
+		return mc.cmdExists(db, args)
 	case "ttl":
-		return cm.cmdTtl(db, args)
+		return mc.cmdTtl(db, args)
 	case "expire":
-		return cm.cmdExpire(db, args)
+		return mc.cmdExpire(db, args)
 	case "type":
-		return cm.cmdType(db, args)
+		return mc.cmdType(db, args)
 	case "dbsize":
-		return cm.cmdDbSize(db)
+		return mc.cmdDbSize(db)
 	case "flushdb":
-		return cm.cmdFlushDb(db)
+		return mc.cmdFlushDb(db)
 	case "flushall":
-		return cm.cmdFlushAll(store)
+		return mc.cmdFlushAll(store)
 	case "select":
-		return cm.cmdSelect(db, args)
+		return mc.cmdSelect(db, args)
 	case "command":
-		return cm.cmdCommand()
+		return mc.cmdCommand()
 	case "quit":
-		return cm.cmdQuit()
+		return mc.cmdQuit()
 	default:
-		return cm.WriteError(fmt.Errorf("unkown command '%s'", cmd))
+		return mc.WriteError(fmt.Errorf("unkown command '%s'", cmd))
 	}
 }
