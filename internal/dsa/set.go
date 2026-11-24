@@ -1,0 +1,148 @@
+package dsa
+
+// A Set is an unordered collection of unique members
+type Set[T comparable] map[T]struct{}
+
+func NewSet[T comparable](items ...T) Set[T] {
+	s := make(Set[T], len(items))
+	for _, v := range items {
+		s.Add(v)
+	}
+	return s
+}
+
+func (s Set[T]) Add(v T) {
+	s[v] = struct{}{}
+}
+
+func (s Set[T]) AddFromSlice(slc []T) int {
+	added := 0
+	for _, v := range slc {
+		if !s.Contains(v) {
+			s.Add(v)
+			added += 1
+		}
+	}
+	return added
+}
+
+func (s Set[T]) Remove(item T) {
+	delete(s, item)
+}
+
+func (s Set[T]) Contains(item T) bool {
+	_, exists := s[item]
+	return exists
+}
+
+func (s Set[T]) Size() int {
+	return len(s)
+}
+
+func (s Set[T]) ToSlice() []T {
+	slice := make([]T, 0, s.Size())
+	for item := range s {
+		slice = append(slice, item)
+	}
+	return slice
+}
+
+// --- Set Operations ---
+
+func (s Set[T]) Union(other Set[T]) Set[T] {
+	res := make(Set[T], s.Size()+other.Size())
+	for item := range s {
+		res.Add(item)
+	}
+	for item := range other {
+		res.Add(item)
+	}
+	return res
+}
+
+func (s Set[T]) Intersection(other Set[T]) Set[T] {
+	small, large := s, other
+	if s.Size() > other.Size() {
+		small, large = other, s
+	}
+
+	res := make(Set[T])
+	for item := range small {
+		if large.Contains(item) {
+			res.Add(item)
+		}
+	}
+	return res
+}
+
+func (s Set[T]) Difference(other Set[T]) Set[T] {
+	res := make(Set[T])
+	for item := range s {
+		if !other.Contains(item) {
+			res.Add(item)
+		}
+	}
+	return res
+}
+
+func (s Set[T]) SymmetricDifference(other Set[T]) Set[T] {
+	res := make(Set[T])
+	for item := range s {
+		if !other.Contains(item) {
+			res.Add(item)
+		}
+	}
+	for item := range other {
+		if !s.Contains(item) {
+			res.Add(item)
+		}
+	}
+	return res
+}
+
+// --- Comparison Checks ---
+
+// IsSubset reports whether all elements of s are also in other (s ⊆ other).
+func (s Set[T]) IsSubset(other Set[T]) bool {
+	if s.Size() > other.Size() {
+		return false
+	}
+	for item := range s {
+		if !other.Contains(item) {
+			return false
+		}
+	}
+	return true
+}
+
+// IsSuperset reports whether s contains all elements of other (s ⊇ other).
+func (s Set[T]) IsSuperset(other Set[T]) bool {
+	return other.IsSubset(s)
+}
+
+// IsDisjoint reports whether s and other have no elements in common (s ∩ other = ∅).
+func (s Set[T]) IsDisjoint(other Set[T]) bool {
+	small, large := s, other
+	if s.Size() > other.Size() {
+		small, large = other, s
+	}
+	for item := range small {
+		if large.Contains(item) {
+			return false
+		}
+	}
+	return true
+}
+
+// Equals reports whether s and other contain the exact same elements (s == other).
+func (s Set[T]) Equals(other Set[T]) bool {
+	if s.Size() != other.Size() {
+		return false
+	}
+	for item := range s {
+		if !other.Contains(item) {
+			return false
+		}
+	}
+	return true
+}

@@ -34,6 +34,13 @@ func NewListEntry(value *dsa.Deque[[]byte], ttl dsa.Option[time.Time]) *Entry {
 	}
 }
 
+func NewSetEntry(value dsa.Set[string], ttl dsa.Option[time.Time]) *Entry {
+	return &Entry{
+		Value: &SetEntry{Value: value},
+		Ttl:   ttl,
+	}
+}
+
 func (e *Entry) IsExpired(now time.Time) bool {
 	if e.Ttl.IsNone() {
 		return false
@@ -79,6 +86,19 @@ func (e *Entry) AsList() (*ListEntry, bool) {
 	}
 
 	return lv, true
+}
+
+func (e *Entry) AsSet() (*SetEntry, bool) {
+	if e.Value.Kind() != SET_KIND {
+		return nil, false
+	}
+
+	sv, ok := e.Value.(*SetEntry)
+	if !ok {
+		return nil, false
+	}
+
+	return sv, true
 }
 
 type Store struct {

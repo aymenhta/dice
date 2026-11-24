@@ -208,6 +208,13 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 		}
 		return mc.cmdLTrim(db, args)
 
+	// set commands
+	case "sadd":
+		if len(args) < 2 {
+			return mc.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return mc.cmdSAdd(db, args)
+
 	// general commands
 	case "ping":
 		return mc.cmdPing(args)

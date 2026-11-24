@@ -12,6 +12,7 @@ const (
 	STRING_KIND EntryKind = iota
 	HASH_KIND
 	LIST_KIND
+	SET_KIND
 )
 
 type IEntryType interface {
@@ -92,4 +93,22 @@ func (l *ListEntry) Kind() EntryKind {
 
 func (l *ListEntry) TypeName() string {
 	return "list"
+}
+
+/**
+ * ===========================================
+ * 			SETS
+ * ===========================================
+ */
+
+type SetEntry struct {
+	Value dsa.Set[string]
+}
+
+func (s *SetEntry) Kind() EntryKind {
+	return SET_KIND
+}
+
+func (s *SetEntry) TypeName() string {
+	return "set"
 }
