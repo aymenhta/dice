@@ -61,3 +61,23 @@ func (mc *RespCommandManager) cmdSMembers(db *store.Database, args [][]byte) err
 
 	return mc.Werr()
 }
+
+func (mc *RespCommandManager) cmdSIsMember(db *store.Database, args [][]byte) error {
+	k := utils.BStr(args[0])
+	v := utils.BStr(args[1])
+
+	e, ok := lives(db, k)
+	if !ok {
+		return mc.WriteInt64(0)
+	}
+
+	se, ok := e.AsSet()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	if !se.Value.Contains(v) {
+		return mc.WriteInt64(0)
+	}
+	return mc.WriteInt64(1)
+}
