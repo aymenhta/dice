@@ -81,3 +81,19 @@ func (mc *RespCommandManager) cmdSIsMember(db *store.Database, args [][]byte) er
 	}
 	return mc.WriteInt64(1)
 }
+
+func (mc *RespCommandManager) cmdSCard(db *store.Database, args [][]byte) error {
+	k := utils.BStr(args[0])
+
+	e, ok := lives(db, k)
+	if !ok {
+		return mc.WriteInt64(0)
+	}
+
+	se, ok := e.AsSet()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	return mc.WriteInt(se.Value.Size())
+}

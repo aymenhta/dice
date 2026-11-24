@@ -224,6 +224,11 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return mc.cmdSIsMember(db, args)
+	case "scard":
+		if len(args) != 1 {
+			return mc.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return mc.cmdSCard(db, args)
 
 	// general commands
 	case "ping":
