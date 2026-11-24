@@ -214,6 +214,11 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return mc.WriteError(utils.WrongArgsNum(cmd))
 		}
 		return mc.cmdSAdd(db, args)
+	case "smembers":
+		if len(args) != 1 {
+			return mc.WriteError(utils.WrongArgsNum(cmd))
+		}
+		return mc.cmdSMembers(db, args)
 
 	// general commands
 	case "ping":

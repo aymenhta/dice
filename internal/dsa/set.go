@@ -1,5 +1,7 @@
 package dsa
 
+import "iter"
+
 // A Set is an unordered collection of unique members
 type Set[T comparable] map[T]struct{}
 
@@ -145,4 +147,18 @@ func (s Set[T]) Equals(other Set[T]) bool {
 		}
 	}
 	return true
+}
+
+// Items returns a generator function for iterating each element in s by using
+// the range keyword.
+//
+//	for element := range s.Items() { ... }
+func (s Set[T]) Items() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for item := range s {
+			if !yield(item) {
+				return
+			}
+		}
+	}
 }

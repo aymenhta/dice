@@ -875,6 +875,13 @@ func (x *RespReadWriter) WriteSet(v []any) error {
 	return nil
 }
 
+func (x *RespReadWriter) WriteEmptySet() error {
+	if err := x.WriteSetHeader(0); err != nil {
+		return err
+	}
+	return nil
+}
+
 // WriteAttrBytes writes an [Attribute](https://github.com/antirez/RESP3/blob/master/spec.md#attribute-type) with the given data. For RESP2 connections, function calls are silently discarded and no data is written
 func (x *RespReadWriter) WriteAttrBytes(v map[string][]byte) error {
 	if x.resp2compat {

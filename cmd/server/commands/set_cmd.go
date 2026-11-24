@@ -32,3 +32,32 @@ func (mc *RespCommandManager) cmdSAdd(db *store.Database, args [][]byte) error {
 	db.Unlock()
 	return mc.WriteInt(n)
 }
+
+func (mc *RespCommandManager) cmdSMembers(db *store.Database, args [][]byte) error {
+	k := utils.BStr(args[0])
+
+	e, ok := lives(db, k)
+	if !ok {
+		if mc.RESP2Compat() {
+			return mc.WriteEmptyArray()
+		}
+		return mc.WriteEmptySet()
+	}
+
+	se, ok := e.AsSet()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	if mc.RESP2Compat() {
+		mc.WriteArrayHeader(se.Value.Size())
+	} else {
+		mc.WriteSetHeader(se.Value.Size())
+	}
+
+	for item := range se.Value.Items() {
+		mc.WriteString(item)
+	}
+
+	return mc.Werr()
+}
