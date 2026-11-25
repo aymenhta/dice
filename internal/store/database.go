@@ -57,6 +57,12 @@ func (db *Database) Remove(key string) {
 	db.Unlock()
 }
 
+func (db *Database) Update(key string, entry *Entry) {
+	db.Lock()
+	defer db.Unlock()
+	db.Body[key] = entry
+}
+
 func (db *Database) RemoveHashFields(key string, fields []string, now time.Time) (int, error) {
 	db.Lock()
 	defer db.Unlock()
