@@ -62,6 +62,26 @@ func (s Set[T]) Union(other Set[T]) Set[T] {
 	return res
 }
 
+// UnionN returns a new set containing all elements from s and all provided sets.
+// If no additional sets are passed, it returns a shallow copy of s.
+func (s Set[T]) UnionN(others ...Set[T]) Set[T] {
+	totalCap := s.Size()
+	for _, other := range others {
+		totalCap += other.Size()
+	}
+
+	res := make(Set[T], totalCap)
+	for item := range s {
+		res.Add(item)
+	}
+	for _, other := range others {
+		for item := range other {
+			res.Add(item)
+		}
+	}
+	return res
+}
+
 func (s Set[T]) Intersection(other Set[T]) Set[T] {
 	small, large := s, other
 	if s.Size() > other.Size() {

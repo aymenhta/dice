@@ -231,3 +231,64 @@ func TestIntersectN(t *testing.T) {
 		t.Error("mutating result of IntersectN() mutated original set")
 	}
 }
+
+func TestUnionN(t *testing.T) {
+	a := NewSet("go", "rust")
+	b := NewSet("rust", "python")
+	c := NewSet("java", "typescript", "go")
+	empty := NewSet[string]()
+
+	tests := []struct {
+		name   string
+		base   Set[string]
+		others []Set[string]
+		want   Set[string]
+	}{
+		{
+			name:   "Multiple overlapping sets",
+			base:   a,
+			others: []Set[string]{b, c},
+			want:   NewSet("go", "rust", "python", "java", "typescript"),
+		},
+		{
+			name:   "Includes empty sets",
+			base:   a,
+			others: []Set[string]{empty, b, empty},
+			want:   NewSet("go", "rust", "python"),
+		},
+		{
+			name:   "Base set is empty",
+			base:   empty,
+			others: []Set[string]{a, b},
+			want:   NewSet("go", "rust", "python"),
+		},
+		{
+			name:   "All sets are empty",
+			base:   empty,
+			others: []Set[string]{empty, NewSet[string]()},
+			want:   empty,
+		},
+		{
+			name:   "No other sets passed returns copy",
+			base:   a,
+			others: nil,
+			want:   NewSet("go", "rust"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.base.UnionN(tt.others...)
+			if !got.Equals(tt.want) {
+				t.Errorf("UnionN() = %v, want %v", got.ToSlice(), tt.want.ToSlice())
+			}
+		})
+	}
+
+	// Ensure original sets are not mutated and returned copy is independent
+	copySet := a.UnionN()
+	copySet.Add("zig")
+	if a.Contains("zig") {
+		t.Error("mutating result of UnionN() mutated original set")
+	}
+}
