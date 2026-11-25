@@ -292,3 +292,71 @@ func TestUnionN(t *testing.T) {
 		t.Error("mutating result of UnionN() mutated original set")
 	}
 }
+
+func TestDifferenceN(t *testing.T) {
+	a := NewSet("go", "rust", "python", "java", "c++")
+	b := NewSet("rust", "typescript")
+	c := NewSet("java", "swift")
+	d := NewSet("go", "python", "c++")
+	empty := NewSet[string]()
+
+	tests := []struct {
+		name   string
+		base   Set[string]
+		others []Set[string]
+		want   Set[string]
+	}{
+		{
+			name:   "Subtracts elements from multiple sets",
+			base:   a,
+			others: []Set[string]{b, c},
+			want:   NewSet("go", "python", "c++"),
+		},
+		{
+			name:   "Subtracts all elements across multiple sets",
+			base:   a,
+			others: []Set[string]{b, c, d},
+			want:   empty,
+		},
+		{
+			name:   "Includes empty sets",
+			base:   a,
+			others: []Set[string]{empty, b, empty},
+			want:   NewSet("go", "python", "java", "c++"),
+		},
+		{
+			name:   "Base set is empty",
+			base:   empty,
+			others: []Set[string]{a, b},
+			want:   empty,
+		},
+		{
+			name:   "Disjoint sets leave base unchanged",
+			base:   NewSet("go", "rust"),
+			others: []Set[string]{NewSet("java"), NewSet("swift")},
+			want:   NewSet("go", "rust"),
+		},
+		{
+			name:   "No other sets passed returns copy",
+			base:   b,
+			others: nil,
+			want:   NewSet("rust", "typescript"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.base.DifferenceN(tt.others...)
+			if !got.Equals(tt.want) {
+				t.Errorf("DifferenceN() = %v, want %v", got.ToSlice(), tt.want.ToSlice())
+			}
+		})
+	}
+
+	// Ensure original set is not mutated and returned copy is independent
+	copySet := b.DifferenceN()
+	copySet.Add("zig")
+	if b.Contains("zig") {
+		t.Error("mutating result of DifferenceN() mutated original set")
+	}
+}

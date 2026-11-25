@@ -159,6 +159,29 @@ func (s Set[T]) SymmetricDifference(other Set[T]) Set[T] {
 	return res
 }
 
+// DifferenceN returns a new set containing elements in s that are not in any of the provided sets.
+// If no additional sets are passed, it returns a shallow copy of s.
+func (s Set[T]) DifferenceN(others ...Set[T]) Set[T] {
+	if len(s) == 0 {
+		return NewSet[T]()
+	}
+
+	res := make(Set[T], len(s))
+	for item := range s {
+		inAny := false
+		for _, other := range others {
+			if other.Contains(item) {
+				inAny = true
+				break
+			}
+		}
+		if !inAny {
+			res.Add(item)
+		}
+	}
+	return res
+}
+
 // --- Comparison Checks ---
 
 // IsSubset reports whether all elements of s are also in other (s ⊆ other).

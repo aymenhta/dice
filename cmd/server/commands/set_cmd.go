@@ -232,3 +232,61 @@ func (mc *RespCommandManager) cmdSRem(db *store.Database, args [][]byte) error {
 	db.Unlock()
 	return mc.WriteInt(removed)
 }
+
+func (mc *RespCommandManager) cmdSDiff(db *store.Database, args [][]byte) error {
+	empty := func() error {
+		if mc.RESP2Compat() {
+			return mc.WriteEmptyArray()
+		}
+		return mc.WriteEmptySet()
+	}
+	var fst dsa.Set[string]
+
+	k := utils.BStr(args[0])
+	e, exists := lives(db, k)
+	if !exists {
+		if len(args) == 1 {
+			return empty()
+		}
+
+		fst = dsa.NewSet[string]()
+	} else {
+		se, ok := e.AsSet()
+		if !ok {
+			return mc.WriteWrongTypeError()
+		}
+		fst = se.Value
+	}
+
+	var out dsa.Set[string]
+	if len(args) == 1 {
+		out = fst.DifferenceN()
+	} else {
+		others := make([]dsa.Set[string], 0, len(args)-1)
+		for _, v := range args[1:] {
+			e, ok := lives(db, utils.BStr(v))
+			if !ok {
+				continue
+			}
+			se, ok := e.AsSet()
+			if !ok {
+				return mc.WriteWrongTypeError()
+			}
+			others = append(others, se.Value)
+		}
+
+		out = fst.DifferenceN(others...)
+	}
+
+	if mc.RESP2Compat() {
+		mc.WriteArrayHeader(out.Size())
+	} else {
+		mc.WriteSetHeader(out.Size())
+	}
+
+	for item := range out.Items() {
+		mc.WriteString(item)
+	}
+
+	return mc.Werr()
+}
