@@ -310,7 +310,7 @@ func (mc *RespCommandManager) cmdSUnionStore(db *store.Database, args [][]byte) 
 		db.Update(destKey, destEntry)
 	}
 
-	return mc.WriteInt64(int64(out.Size()))
+	return mc.WriteInt(out.Size())
 }
 
 func (mc *RespCommandManager) cmdSRem(db *store.Database, args [][]byte) error {
@@ -394,4 +394,59 @@ func (mc *RespCommandManager) cmdSDiff(db *store.Database, args [][]byte) error 
 	}
 
 	return mc.Werr()
+}
+
+func (mc *RespCommandManager) cmdSDiffStore(db *store.Database, args [][]byte) error {
+	var fst dsa.Set[string]
+
+	k := utils.BStr(args[1])
+	e, exists := lives(db, k)
+	if !exists {
+		if len(args) == 2 {
+			return mc.WriteInt64(0)
+		}
+
+		fst = dsa.NewSet[string]()
+	} else {
+		se, ok := e.AsSet()
+		if !ok {
+			return mc.WriteWrongTypeError()
+		}
+		fst = se.Value
+	}
+
+	var out dsa.Set[string]
+	if len(args) == 2 {
+		out = fst.DifferenceN()
+	} else {
+		others := make([]dsa.Set[string], 0, len(args)-2)
+		for _, v := range args[2:] {
+			e, ok := lives(db, utils.BStr(v))
+			if !ok {
+				continue
+			}
+			se, ok := e.AsSet()
+			if !ok {
+				return mc.WriteWrongTypeError()
+			}
+			others = append(others, se.Value)
+		}
+
+		out = fst.DifferenceN(others...)
+	}
+
+	destKey := utils.BStr(utils.CopyBytes(args[0]))
+	destE, ok := lives(db, destKey)
+	if !ok {
+		db.Set(destKey, store.NewSetEntry(out, dsa.None[time.Time]()))
+	} else {
+		se, ok := destE.AsSet()
+		if !ok {
+			return mc.WriteWrongTypeError()
+		}
+		se.Value = out
+		db.Update(destKey, destE)
+	}
+
+	return mc.WriteInt(out.Size())
 }

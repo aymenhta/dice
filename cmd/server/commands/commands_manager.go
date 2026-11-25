@@ -259,6 +259,11 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return mc.WriteWrongArgsNumError(cmd)
 		}
 		return mc.cmdSDiff(db, args)
+	case "sdiffstore":
+		if len(args) < 2 {
+			return mc.WriteWrongArgsNumError(cmd)
+		}
+		return mc.cmdSDiffStore(db, args)
 
 	// general commands
 	case "ping":
