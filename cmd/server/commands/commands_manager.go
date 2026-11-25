@@ -234,6 +234,11 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return mc.WriteWrongArgsNumError(cmd)
 		}
 		return mc.cmdSInter(db, args)
+	case "sinterstore":
+		if len(args) < 2 {
+			return mc.WriteWrongArgsNumError(cmd)
+		}
+		return mc.cmdSInterStore(db, args)
 	case "sunion":
 		if len(args) < 1 {
 			return mc.WriteWrongArgsNumError(cmd)

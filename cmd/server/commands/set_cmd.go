@@ -150,6 +150,55 @@ func (mc *RespCommandManager) cmdSInter(db *store.Database, args [][]byte) error
 	return mc.Werr()
 }
 
+func (mc *RespCommandManager) cmdSInterStore(db *store.Database, args [][]byte) error {
+	k := utils.BStr(args[1])
+	e, ok := lives(db, k)
+	if !ok {
+		return mc.WriteInt64(0)
+	}
+
+	se, ok := e.AsSet()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	var out dsa.Set[string]
+
+	if len(args) == 2 {
+		out = se.Value.IntersectN()
+	} else {
+		others := make([]dsa.Set[string], 0, len(args)-2)
+		for _, v := range args[2:] {
+			e, ok := lives(db, utils.BStr(v))
+			if !ok {
+				return mc.WriteInt64(0)
+			}
+			se, ok := e.AsSet()
+			if !ok {
+				return mc.WriteWrongTypeError()
+			}
+			others = append(others, se.Value)
+		}
+
+		out = se.Value.IntersectN(others...)
+	}
+
+	destKey := utils.BStr(utils.CopyBytes(args[0]))
+	destE, ok := lives(db, destKey)
+	if !ok {
+		db.Set(destKey, store.NewSetEntry(out, dsa.None[time.Time]()))
+	} else {
+		se, ok := e.AsSet()
+		if !ok {
+			return mc.WriteWrongTypeError()
+		}
+		se.Value = out
+		db.Update(destKey, destE)
+	}
+
+	return mc.WriteInt(out.Size())
+}
+
 func (mc *RespCommandManager) cmdSUnion(db *store.Database, args [][]byte) error {
 	empty := func() error {
 		if mc.RESP2Compat() {
