@@ -245,12 +245,9 @@ func ParseInt32(b []byte) (int32, error) {
 	return int32(v), nil
 }
 
+//go:fix inline
 func Pointer[T any](v T) *T {
-	return &v
-}
-
-func WrongArgsNum(cmd string) error {
-	return fmt.Errorf("wrong number of arguments for '%s' command", cmd)
+	return new(v)
 }
 
 func InvalidExpire(cmd string) error {

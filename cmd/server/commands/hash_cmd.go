@@ -52,7 +52,7 @@ func buildHash(pairs []HsetPair) (map[string]*store.HashField, int64) {
 // (updating an existing field doesn't count).
 func (cm *RespCommandManager) cmdHSet(db *store.Database, args [][]byte) error {
 	if !(len(args) >= 3 && len(args)%2 == 1) {
-		return cm.WriteError(utils.WrongArgsNum("hset"))
+		return cm.WriteWrongArgsNumError("hset")
 	}
 
 	key := utils.BStr(utils.CopyBytes(args[0]))
@@ -89,7 +89,7 @@ func (cm *RespCommandManager) cmdHSet(db *store.Database, args [][]byte) error {
 // HGET key field -> the field's value, or nil if the key or field is missing
 func (cm *RespCommandManager) cmdHGet(db *store.Database, args [][]byte) error {
 	if len(args) != 2 {
-		return cm.WriteError(utils.WrongArgsNum("hget"))
+		return cm.WriteWrongArgsNumError("hget")
 	}
 
 	key := utils.BStr(args[0])

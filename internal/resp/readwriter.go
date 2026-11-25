@@ -567,6 +567,12 @@ func (x *RespReadWriter) WriteError(e error) error {
 	return x.writeWithPrefix(static.RespPrefixedErrorBytes, utils.StrB(e.Error()), nil)
 }
 
+func (x *RespReadWriter) WriteWrongArgsNumError(cmd string) error {
+	return x.writeWithPrefix(static.RespPrefixedErrorBytes, utils.StrB(
+		fmt.Errorf("wrong number of arguments for '%s' command", cmd).Error(),
+	), nil)
+}
+
 func (x *RespReadWriter) WriteWrongTypeError() error {
 	return x.writeWithPrefix(
 		static.RespPrefixedWrongTypeErrBytes,

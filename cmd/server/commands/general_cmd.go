@@ -12,7 +12,7 @@ import (
 
 func (cm *RespCommandManager) cmdPing(args [][]byte) error {
 	if len(args) > 1 {
-		return cm.WriteError(utils.WrongArgsNum("ping"))
+		return cm.WriteWrongArgsNumError("ping")
 	}
 
 	if len(args) == 1 {
@@ -24,7 +24,7 @@ func (cm *RespCommandManager) cmdPing(args [][]byte) error {
 
 func (cm *RespCommandManager) cmdEcho(args [][]byte) error {
 	if len(args) != 1 {
-		return cm.WriteError(utils.WrongArgsNum("echo"))
+		return cm.WriteWrongArgsNumError("echo")
 	}
 	return cm.WriteBytes(args[0])
 }
@@ -154,7 +154,7 @@ func (mc *RespCommandManager) cmdHello(args [][]byte) error {
 
 func (cm *RespCommandManager) cmdExists(db *store.Database, args [][]byte) error {
 	if len(args) == 0 {
-		return cm.WriteError(utils.WrongArgsNum("exists"))
+		return cm.WriteWrongArgsNumError("exists")
 	}
 
 	count := int64(0)
@@ -169,7 +169,7 @@ func (cm *RespCommandManager) cmdExists(db *store.Database, args [][]byte) error
 
 func (cm *RespCommandManager) cmdDel(db *store.Database, args [][]byte) error {
 	if len(args) == 0 {
-		return cm.WriteError(utils.WrongArgsNum("del"))
+		return cm.WriteWrongArgsNumError("del")
 	}
 
 	toBeDeleted := make([]string, 0)
@@ -185,7 +185,7 @@ func (cm *RespCommandManager) cmdDel(db *store.Database, args [][]byte) error {
 
 func (cm *RespCommandManager) cmdExpire(db *store.Database, args [][]byte) error {
 	if len(args) < 2 || len(args) > 3 {
-		return cm.WriteError(utils.WrongArgsNum("expire"))
+		return cm.WriteWrongArgsNumError("expire")
 	}
 
 	key := utils.BStr(args[0])
@@ -223,7 +223,7 @@ func (cm *RespCommandManager) cmdExpire(db *store.Database, args [][]byte) error
 
 func (cm *RespCommandManager) cmdTtl(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
-		return cm.WriteError(utils.WrongArgsNum("ttl"))
+		return cm.WriteWrongArgsNumError("ttl")
 	}
 
 	key := utils.BStr(args[0])
@@ -243,7 +243,7 @@ func (cm *RespCommandManager) cmdTtl(db *store.Database, args [][]byte) error {
 
 func (cm *RespCommandManager) cmdType(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
-		return cm.WriteError(utils.WrongArgsNum("type"))
+		return cm.WriteWrongArgsNumError("type")
 	}
 
 	key := utils.BStr(args[0])
@@ -276,7 +276,7 @@ func (cm *RespCommandManager) cmdFlushAll(st *store.Store) error {
 
 func (cm *RespCommandManager) cmdSelect(db *store.Database, args [][]byte) error {
 	if len(args) != 1 {
-		return cm.WriteError(utils.WrongArgsNum("select"))
+		return cm.WriteWrongArgsNumError("select")
 	}
 
 	n, err := utils.ParseInt32(args[0])
