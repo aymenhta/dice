@@ -239,6 +239,11 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return mc.WriteWrongArgsNumError(cmd)
 		}
 		return mc.cmdSUnion(db, args)
+	case "srem":
+		if len(args) < 2 {
+			return mc.WriteWrongArgsNumError(cmd)
+		}
+		return mc.cmdSRem(db, args)
 
 	// general commands
 	case "ping":

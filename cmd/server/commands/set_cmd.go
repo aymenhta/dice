@@ -207,3 +207,28 @@ func (mc *RespCommandManager) cmdSUnion(db *store.Database, args [][]byte) error
 
 	return mc.Werr()
 }
+
+func (mc *RespCommandManager) cmdSRem(db *store.Database, args [][]byte) error {
+	e, ok := lives(db, utils.BStr(args[0]))
+	if !ok {
+		return mc.WriteInt64(0)
+	}
+
+	se, ok := e.AsSet()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	removed := 0
+	db.Lock()
+	for _, arg := range args[1:] {
+		m := utils.BStr(arg)
+		if !se.Value.Contains(m) {
+			continue
+		}
+		se.Value.Remove(m)
+		removed += 1
+	}
+	db.Unlock()
+	return mc.WriteInt(removed)
+}
