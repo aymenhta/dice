@@ -150,3 +150,84 @@ func TestSetComparisons(t *testing.T) {
 		t.Error("expected empty set to be disjoint from any set")
 	}
 }
+
+func TestIntersectN(t *testing.T) {
+	a := NewSet("go", "rust", "python", "java")
+	b := NewSet("go", "rust", "typescript")
+	c := NewSet("go", "c++", "rust")
+	d := NewSet("swift", "kotlin")
+	empty := NewSet[string]()
+
+	tests := []struct {
+		name   string
+		base   Set[string]
+		others []Set[string]
+		want   Set[string]
+	}{
+		{
+			name:   "Three overlapping sets",
+			base:   a,
+			others: []Set[string]{b, c},
+			want:   NewSet("go", "rust"),
+		},
+		{
+			name:   "No overlap across all sets",
+			base:   a,
+			others: []Set[string]{b, c, d},
+			want:   empty,
+		},
+		{
+			name:   "One of the sets is empty",
+			base:   a,
+			others: []Set[string]{b, empty, c},
+			want:   empty,
+		},
+		{
+			name:   "Base set is empty",
+			base:   empty,
+			others: []Set[string]{a, b},
+			want:   empty,
+		},
+		{
+			name:   "No other sets passed returns copy",
+			base:   b,
+			others: nil,
+			want:   NewSet("go", "rust", "typescript"),
+		},
+		// --- Regression tests for equal-length sets with different elements ---
+		{
+			name:   "Equal length base and other with disjoint elements",
+			base:   NewSet("go", "rust", "python"),
+			others: []Set[string]{NewSet("java", "c++", "swift")},
+			want:   empty,
+		},
+		{
+			name:   "Equal length base and others with partial overlap",
+			base:   NewSet("go", "rust", "python"),
+			others: []Set[string]{NewSet("go", "java", "c++"), NewSet("go", "swift", "kotlin")},
+			want:   NewSet("go"),
+		},
+		{
+			name:   "Base is largest, two others tie for smallest with different elements",
+			base:   NewSet("go", "rust", "python", "java"),
+			others: []Set[string]{NewSet("go", "c++"), NewSet("rust", "swift")},
+			want:   empty,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.base.IntersectN(tt.others...)
+			if !got.Equals(tt.want) {
+				t.Errorf("IntersectN() = %v, want %v", got.ToSlice(), tt.want.ToSlice())
+			}
+		})
+	}
+
+	// Ensure passing no arguments returns an independent copy (mutation safety)
+	copySet := b.IntersectN()
+	copySet.Add("zig")
+	if b.Contains("zig") {
+		t.Error("mutating result of IntersectN() mutated original set")
+	}
+}

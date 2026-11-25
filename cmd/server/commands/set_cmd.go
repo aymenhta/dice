@@ -97,3 +97,55 @@ func (mc *RespCommandManager) cmdSCard(db *store.Database, args [][]byte) error 
 
 	return mc.WriteInt(se.Value.Size())
 }
+
+func (mc *RespCommandManager) cmdSInter(db *store.Database, args [][]byte) error {
+	k := utils.BStr(args[0])
+	e, ok := lives(db, k)
+	if !ok {
+		if mc.RESP2Compat() {
+			return mc.WriteEmptyArray()
+		}
+		return mc.WriteEmptySet()
+	}
+
+	se, ok := e.AsSet()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	var out dsa.Set[string]
+
+	if len(args) == 1 {
+		out = se.Value.IntersectN()
+	} else {
+		others := make([]dsa.Set[string], 0, len(args)-1)
+		for _, v := range args[1:] {
+			e, ok := lives(db, utils.BStr(v))
+			if !ok {
+				if mc.RESP2Compat() {
+					return mc.WriteEmptyArray()
+				}
+				return mc.WriteEmptySet()
+			}
+			se, ok := e.AsSet()
+			if !ok {
+				return mc.WriteWrongTypeError()
+			}
+			others = append(others, se.Value)
+		}
+
+		out = se.Value.IntersectN(others...)
+	}
+
+	if mc.RESP2Compat() {
+		mc.WriteArrayHeader(out.Size())
+	} else {
+		mc.WriteSetHeader(out.Size())
+	}
+
+	for item := range out.Items() {
+		mc.WriteString(item)
+	}
+
+	return mc.Werr()
+}

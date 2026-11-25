@@ -77,6 +77,43 @@ func (s Set[T]) Intersection(other Set[T]) Set[T] {
 	return res
 }
 
+func (s Set[T]) IntersectN(others ...Set[T]) Set[T] {
+	if s.Size() == 0 {
+		return NewSet[T]()
+	}
+
+	smallest := s
+	for _, other := range others {
+		if other.Size() == 0 {
+			// intersection with an empty set is always empty
+			return NewSet[T]()
+		}
+		if other.Size() < smallest.Size() {
+			smallest = other
+		}
+	}
+
+	res := make(Set[T], len(smallest))
+	for item := range smallest {
+		// Check s if s wasn't the smallest set
+		if !s.Contains(item) {
+			continue
+		}
+
+		inAll := true
+		for _, other := range others {
+			if !other.Contains(item) {
+				inAll = false
+				break
+			}
+		}
+		if inAll {
+			res.Add(item)
+		}
+	}
+	return res
+}
+
 func (s Set[T]) Difference(other Set[T]) Set[T] {
 	res := make(Set[T])
 	for item := range s {
