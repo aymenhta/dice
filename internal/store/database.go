@@ -507,6 +507,42 @@ func (db *Database) MSetEx(
 	return 1, nil
 }
 
+func (db *Database) SMove(srcK, destK, member string) (int64, error) {
+	now := time.Now()
+	db.Lock()
+	defer db.Unlock()
+
+	srcE, ok := db.getOrExpire(srcK, now)
+	if !ok {
+		return 0, nil
+	}
+
+	src, ok := srcE.AsSet()
+	if !ok {
+		return -1, utils.ErrWrongTypeErr
+	}
+
+	if _, ok := src.Value[member]; !ok {
+		return 0, nil
+	}
+	src.Value.Remove(member)
+
+	destE, ok := db.getOrExpire(destK, now)
+	if !ok {
+		destE = NewSetEntry(dsa.NewSet(member), dsa.None[time.Time]())
+		db.Body[destK] = destE
+		return 1, nil
+	}
+
+	dest, ok := destE.AsSet()
+	if !ok {
+		return -1, utils.ErrWrongTypeErr
+	}
+	dest.Value.Add(member)
+
+	return 1, nil
+}
+
 func (db *Database) debugMap() {
 	println("====================================================")
 	fmt.Println("key -> value")

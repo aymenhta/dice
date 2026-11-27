@@ -647,3 +647,16 @@ func (mc *RespCommandManager) cmdSPop(db *store.Database, args [][]byte) error {
 
 	return mc.Werr()
 }
+
+func (mc *RespCommandManager) cmdSMove(db *store.Database, args [][]byte) error {
+	n, err := db.SMove(utils.BStr(args[0]), utils.BStr(args[1]), utils.BStr(args[2]))
+	if err != nil {
+		switch {
+		case errors.Is(err, utils.ErrWrongTypeErr):
+			return mc.WriteWrongTypeError()
+		default:
+			return mc.WriteError(err)
+		}
+	}
+	return mc.WriteInt64(n)
+}

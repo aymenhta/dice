@@ -279,6 +279,11 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return mc.WriteWrongArgsNumError(cmd)
 		}
 		return mc.cmdSPop(db, args)
+	case "smove":
+		if len(args) != 3 {
+			return mc.WriteWrongArgsNumError(cmd)
+		}
+		return mc.cmdSMove(db, args)
 
 	// general commands
 	case "ping":
