@@ -580,3 +580,70 @@ func (mc *RespCommandManager) cmdSRandMember(db *store.Database, args [][]byte) 
 		return mc.Werr()
 	}
 }
+
+func (mc *RespCommandManager) cmdSPop(db *store.Database, args [][]byte) error {
+	var countArg dsa.Option[int64]
+	if len(args) == 2 {
+		c, err := utils.ParseInt64(args[1])
+		if err != nil {
+			return mc.WriteError(err)
+		}
+		if c < 0 {
+			return mc.WriteError(errors.New("value is out of range, must be positive"))
+		}
+		if c == 0 {
+			return mc.WriteEmptyArray()
+		}
+		countArg = dsa.Some(c)
+	} else {
+		countArg = dsa.None[int64]()
+	}
+
+	key := utils.BStr(utils.CopyBytes(args[0]))
+	e, ok := lives(db, key)
+	if !ok {
+		if countArg.IsSome() {
+			return mc.WriteEmptyArray()
+		}
+		return mc.WriteNullString()
+	}
+
+	se, ok := e.AsSet()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+	setSize := int64(se.Value.Size())
+	if setSize < 1 {
+		return mc.WriteEmptyArray()
+	}
+
+	if countArg.IsNone() {
+		setItems := slices.Collect(se.Value.Items())
+		out := setItems[rand.IntN(len(setItems))]
+		se.Value.Remove(out)
+		db.Update(key, e)
+		return mc.WriteString(out)
+	}
+
+	count := countArg.OrEmpty()
+	lo := min(count, setSize)
+	mc.WriteArrayHeaderInt64(lo)
+	for range lo {
+		target := rand.IntN(se.Value.Size())
+		var i int
+		for item := range se.Value.Items() {
+			if i == target {
+				se.Value.Remove(item)
+				db.Update(key, e)
+				mc.WriteString(item)
+			}
+			i += 1
+		}
+	}
+
+	if se.Value.Size() == 0 {
+		db.Remove(key)
+	}
+
+	return mc.Werr()
+}
