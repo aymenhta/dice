@@ -1,6 +1,8 @@
 package dsa
 
-import "iter"
+import (
+	"iter"
+)
 
 // A Set is an unordered collection of unique members
 type Set[T comparable] map[T]struct{}
@@ -132,6 +134,53 @@ func (s Set[T]) IntersectN(others ...Set[T]) Set[T] {
 		}
 	}
 	return res
+}
+
+func (s Set[T]) LimitIntersectN(limit int64, others ...Set[T]) int64 {
+	if s.Size() == 0 {
+		return 0
+	}
+
+	if limit < 0 {
+		limit = 0
+	}
+
+	smallest := s
+	for _, other := range others {
+		if other.Size() == 0 {
+			// intersection with an empty set is always empty
+			return 0
+		}
+		if other.Size() < smallest.Size() {
+			smallest = other
+		}
+	}
+
+	// res := make(Set[T], len(smallest))
+	var card int64
+	for item := range smallest {
+		// Check s if s wasn't the smallest set
+		if !s.Contains(item) {
+			continue
+		}
+
+		inAll := true
+		for _, other := range others {
+			if !other.Contains(item) {
+				inAll = false
+				break
+			}
+		}
+		if inAll {
+			// res.Add(item)
+			card += 1
+		}
+
+		if limit > 0 && card == limit {
+			return limit
+		}
+	}
+	return card
 }
 
 func (s Set[T]) Difference(other Set[T]) Set[T] {

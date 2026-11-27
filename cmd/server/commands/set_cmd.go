@@ -1,6 +1,9 @@
 package commands
 
 import (
+	"errors"
+	"math/rand/v2"
+	"slices"
 	"time"
 
 	"github.com/aymenhta/dice/internal/dsa"
@@ -449,4 +452,131 @@ func (mc *RespCommandManager) cmdSDiffStore(db *store.Database, args [][]byte) e
 	}
 
 	return mc.WriteInt(out.Size())
+}
+
+func (mc *RespCommandManager) cmdSInterCard(db *store.Database, args [][]byte) error {
+	nkeys, err := utils.ParseInt64(args[0])
+	if err != nil {
+		return mc.WriteError(err)
+	}
+
+	if nkeys < 1 {
+		return mc.WriteError(errors.New("numkeys should be greater than 0"))
+	}
+
+	offset := nkeys + 1
+	keys := make([]string, 0, nkeys)
+	for _, arg := range args[1:offset] {
+		keys = append(keys, utils.BStr(arg))
+	}
+
+	var limit int64
+	if offset < int64(len(args)) {
+		if utils.BStr(utils.BytesToLower(args[offset])) != "limit" || offset+1 >= int64(len(args)) {
+			return mc.WriteError(utils.ErrSyntaxError)
+		}
+		l, err := utils.ParseInt64(args[offset+1])
+		if err != nil {
+			return mc.WriteError(err)
+		}
+		if l < 0 {
+			return mc.WriteError(errors.New("LIMIT can't be negative"))
+		}
+		limit = l
+	}
+
+	e, ok := lives(db, keys[0])
+	if !ok {
+		return mc.WriteInt64(0)
+	}
+
+	se, ok := e.AsSet()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	others := make([]dsa.Set[string], 0, len(keys)-1)
+	for i := 1; i < len(keys); i++ {
+		oe, ok := lives(db, keys[i])
+		if !ok {
+			return mc.WriteInt64(0)
+		}
+		ose, ok := oe.AsSet()
+		if !ok {
+			return mc.WriteWrongTypeError()
+		}
+		others = append(others, ose.Value)
+	}
+
+	card := se.Value.LimitIntersectN(limit, others...)
+	return mc.WriteInt64(card)
+}
+
+func (mc *RespCommandManager) cmdSRandMember(db *store.Database, args [][]byte) error {
+	var countArg dsa.Option[int64]
+	if len(args) == 2 {
+		c, err := utils.ParseInt64(args[1])
+		if err != nil {
+			return mc.WriteError(err)
+		}
+		countArg = dsa.Some(c)
+	} else {
+		countArg = dsa.None[int64]()
+	}
+
+	key := utils.BStr(args[0])
+	e, ok := lives(db, key)
+	if !ok {
+		if countArg.IsSome() {
+			return mc.WriteEmptyArray()
+		}
+		return mc.WriteNullString()
+	}
+
+	se, ok := e.AsSet()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+	setSize := int64(se.Value.Size())
+	setItems := slices.Collect(se.Value.Items())
+	if setSize < 1 {
+		return mc.WriteEmptyArray()
+	}
+
+	// without the additional count argument, the command returns a randomly selected member
+	if countArg.IsNone() {
+		out := setItems[rand.Int64N(setSize)]
+		return mc.WriteString(out)
+	}
+
+	count := countArg.OrEmpty()
+	if count >= 0 {
+		osize := min(count, setSize)
+		mc.WriteArrayHeaderInt64(osize)
+		for range osize {
+			mc.WriteString(setItems[rand.Int64N(setSize)])
+		}
+		return mc.Werr()
+	}
+
+	count = -count
+	mc.WriteArrayHeaderInt64(count)
+	hi := max(count, setSize)
+	if hi == setSize {
+		for range count {
+			mc.WriteString(setItems[rand.Int64N(setSize)])
+		}
+		return mc.Werr()
+	} else {
+		for range setSize {
+			mc.WriteString(setItems[rand.Int64N(setSize)])
+		}
+		rest := count - setSize
+		if rest > 0 {
+			for range rest {
+				mc.WriteString(setItems[rand.Int64N(setSize)])
+			}
+		}
+		return mc.Werr()
+	}
 }

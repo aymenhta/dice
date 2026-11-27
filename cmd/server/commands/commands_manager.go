@@ -239,6 +239,11 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return mc.WriteWrongArgsNumError(cmd)
 		}
 		return mc.cmdSInterStore(db, args)
+	case "sintercard":
+		if len(args) < 2 {
+			return mc.WriteWrongArgsNumError(cmd)
+		}
+		return mc.cmdSInterCard(db, args)
 	case "sunion":
 		if len(args) < 1 {
 			return mc.WriteWrongArgsNumError(cmd)
@@ -264,6 +269,11 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return mc.WriteWrongArgsNumError(cmd)
 		}
 		return mc.cmdSDiffStore(db, args)
+	case "srandmember":
+		if len(args) != 1 && len(args) != 2 {
+			return mc.WriteWrongArgsNumError(cmd)
+		}
+		return mc.cmdSRandMember(db, args)
 
 	// general commands
 	case "ping":

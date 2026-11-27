@@ -720,6 +720,10 @@ func (x *RespReadWriter) WriteArrayHeader(l int) error {
 	return x.writeWithType(types.RespArray, strconv.AppendInt(x.appendIntBuf[:0], int64(l), 10), nil)
 }
 
+func (x *RespReadWriter) WriteArrayHeaderInt64(l int64) error {
+	return x.writeWithType(types.RespArray, strconv.AppendInt(x.appendIntBuf[:0], l, 10), nil)
+}
+
 // WriteArrayBytes is a convenience method to write an array of Bulk strings.
 func (x *RespReadWriter) WriteArrayBytes(v [][]byte) error {
 	if err := x.WriteArrayHeader(len(v)); err != nil {
