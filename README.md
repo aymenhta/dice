@@ -29,6 +29,8 @@ redis-cli -p 8888 HSET user:1 name Aymen age 30
 redis-cli -p 8888 HGETALL user:1
 redis-cli -p 8888 LPUSH evens 2 4 6 8
 redis-cli -p 8888 LRANGE evens 0 -1
+redis-cli -p 8888 SADD fruits banana apple peach
+redis-cli -p 8888 SMEMBERS fruits
 ```
 
 كما يمكن استخدام أي عميل Redis متاح لأي لغة برمجة.
