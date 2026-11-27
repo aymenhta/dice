@@ -22,6 +22,9 @@ CGO_ENABLED="${CGO_ENABLED:-0}"
 # -----------------------------------------
 
 TARGETS=(
+    "windows amd64"
+    "windows arm64"
+
     "linux amd64"
     "linux arm64"
     "linux riscv64"
