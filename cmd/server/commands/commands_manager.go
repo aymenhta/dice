@@ -284,6 +284,11 @@ func (mc *RespCommandManager) Dispatch(store *store.Store, args [][]byte) error 
 			return mc.WriteWrongArgsNumError(cmd)
 		}
 		return mc.cmdSMove(db, args)
+	case "smismember":
+		if len(args) < 2 {
+			return mc.WriteWrongArgsNumError(cmd)
+		}
+		return mc.cmdSMIsMember(db, args)
 
 	// general commands
 	case "ping":

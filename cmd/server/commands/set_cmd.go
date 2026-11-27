@@ -660,3 +660,31 @@ func (mc *RespCommandManager) cmdSMove(db *store.Database, args [][]byte) error 
 	}
 	return mc.WriteInt64(n)
 }
+
+func (mc *RespCommandManager) cmdSMIsMember(db *store.Database, args [][]byte) error {
+	key := utils.BStr(args[0])
+
+	e, ok := lives(db, key)
+	if !ok {
+		mc.WriteArrayHeader(len(args) - 1)
+		for range len(args) - 1 {
+			mc.WriteInt64(0)
+		}
+		return mc.Werr()
+	}
+
+	se, ok := e.AsSet()
+	if !ok {
+		return mc.WriteWrongTypeError()
+	}
+
+	mc.WriteArrayHeader(len(args) - 1)
+	for _, arg := range args[1:] {
+		if se.Value.Contains(utils.BStr(arg)) {
+			mc.WriteInt64(1)
+		} else {
+			mc.WriteInt64(0)
+		}
+	}
+	return mc.Werr()
+}
