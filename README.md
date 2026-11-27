@@ -73,12 +73,13 @@ r.close()
 - **الأوامر العامة**:
     - HELLO, PING, ECHO, EXISTS, DEL, EXPIRE, TTL, TYPE, DBSIZE, FLUSHDB, FLUSHALL, SELECT, QUIT. 
 - **السلاسل النصية**: 
-    - SET, GET, INCR, DECR, INCRBY, DECRBY, MGET, MSET, GETDEL, DELEX, GETEX, STRLEN, APPEND, DIGEST, GETRANGE, SETRANGE.
-- **التجزئات**:
+    - SET, GET, INCR, DECR, INCRBY, DECRBY, MGET, MSET, GETDEL, DELEX, GETEX, STRLEN, APPEND, DIGEST, GETRANGE, SETRANGE, MSETEX, MSETNX, SETNX.
+- **جداول التجزئة**:
     - HSET, HGET, HGETALL, HDEL, HEXISTS, HLEN, HMGET, HKEYS, HVALS, HINCRBY, HEXPIRE.
 - **القوائم**:
     - LPUSH, RPUSH, LPUSHX, RPUSHX, LPOP, RPOP, LRANGE, LLEN, LINDEX , LREM, LSET, LMOVE, LTRIM.
-
+- **المجموعات**:
+    - SADD, SREM, SISMEMBER, SMEMBERS, SCARD, SINTER, SUNION, SDIFF, SINTERSTORE, SUNIONSTORE, SDIFFSTORE, SINTERCARD, SRANDMEMBER, SPOP, SMOVE, SMISMEMBER.
 
 ## القيود الحالية
 
@@ -86,6 +87,6 @@ r.close()
 - لا يوجد دعم للنسخ المتماثل (replication) ولا Pub/Sub ولا المعاملات (MULTI/EXEC) ولا المصادقة ولا TLS.
 - انتهاء صلاحية المفاتيح يتم عند الوصول إليها (lazy expiration) فقط، دون مهمة خلفية تنظّف المفاتيح المنتهية.
 
-- نحن حاليا ندعم العمليات على أنواع البيانات التالية فقط: **السلاسل النصية، والتجزئات، والقوائم.** سندعم تدريجيا بقية أنواع البيانات في Redis مع كل اصدار جديد. 
+- نحن حاليا ندعم العمليات على أنواع البيانات التالية فقط: **السلاسل النصية، وجداول التجزئة، والقوائم, والموجموعات.** سندعم تدريجيا بقية أنواع البيانات في Redis مع كل اصدار جديد. 
 </div>
 
